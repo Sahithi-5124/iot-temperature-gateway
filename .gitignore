@@ -52,3 +52,15 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Buildroot downloaded source and archives
+/buildroot/source/
+
+# Buildroot generated output
+/buildroot/output/
+
+# Buildroot download cache
+/buildroot/dl/
+
+# Buildroot generated images
+/buildroot/images/
