@@ -1,0 +1,54 @@
+# Buildroot generated output
+/buildroot/output/
+/buildroot/dl/
+/buildroot/build/
+
+# Compiled objects and binaries
+*.o
+*.a
+*.so
+*.so.*
+*.elf
+*.bin
+*.img
+*.iso
+*.dtb
+*.dtbo
+
+# Generated kernel and root filesystem images
+/Image
+/zImage
+/bzImage
+/rootfs.cpio
+/rootfs.ext*
+/rootfs.tar
+
+# Application build artifacts
+/application/iot-gateway
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*~
+
+# Benchmark-generated results (keep directory structure)
+# Commit selected, reviewed benchmark results deliberately.
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.secret
+
+# Editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
