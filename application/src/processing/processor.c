@@ -6,6 +6,10 @@
 #define WARNING_THRESHOLD_C  35.0
 #define CRITICAL_THRESHOLD_C 40.0
 
+/* Provisional accepted input range in degrees Celsius. */
+#define MIN_VALID_TEMPERATURE_C (-40.0)
+#define MAX_VALID_TEMPERATURE_C (85.0)
+
 bool processor_process(
     const temperature_sample_t *sample,
     temperature_result_t *out_result
@@ -15,7 +19,11 @@ bool processor_process(
         return false;
     }
 
-    if (!sample->valid || !isfinite(sample->temperature_c)) {
+    /* Reject invalid, non-finite, or out-of-range readings. */
+    if (!sample->valid ||
+        !isfinite(sample->temperature_c) ||
+        sample->temperature_c < MIN_VALID_TEMPERATURE_C ||
+        sample->temperature_c > MAX_VALID_TEMPERATURE_C) {
         return false;
     }
 

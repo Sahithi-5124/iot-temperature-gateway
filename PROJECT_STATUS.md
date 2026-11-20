@@ -507,6 +507,20 @@ PASS: NaN and infinity rejection.
 === All processor tests passed ===
 ```
 
+### Temperature Input Range Validation
+
+The temperature-processing module was extended with input range validation.
+
+- Accepted temperature range: −40°C to 85°C, inclusive (provisional).
+- Readings below −40°C or above 85°C are rejected.
+- NaN and positive/negative infinity are rejected.
+- Invalid sensor samples and NULL arguments are rejected.
+- Existing normal, warning and critical classification thresholds remain unchanged.
+
+**Verification:** The processor test program compiled with strict C11 warning flags and all eight test groups passed, including valid range boundaries, out-of-range values, invalid samples, NULL arguments and non-finite values.
+
+**Limitation:** The accepted input range is provisional and must be reviewed when the physical sensor model is confirmed. Testing was performed on the Ubuntu host; QEMU integration remains pending.
+
 #### Processor Module Limitations
 
 - Comprehensive acceptable temperature range validation has not been implemented.

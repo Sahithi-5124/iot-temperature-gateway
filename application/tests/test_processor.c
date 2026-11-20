@@ -26,6 +26,20 @@ static void test_temperature(
     assert(result.status == expected_status);
 }
 
+static void test_invalid_temperature(double temperature)
+{
+    temperature_sample_t sample = {
+        .temperature_c = temperature,
+        .timestamp_unix_s = 1795000000,
+        .source = SENSOR_SOURCE_SIMULATED,
+        .valid = true
+    };
+
+    temperature_result_t result;
+
+    assert(!processor_process(&sample, &result));
+}
+
 int main(void)
 {
     temperature_sample_t sample = {
@@ -54,6 +68,16 @@ int main(void)
     test_temperature(42.0, TEMPERATURE_STATUS_CRITICAL);
     printf("PASS: Critical temperature classification.\n");
 
+    /* Valid input range boundary tests. */
+    test_temperature(-40.0, TEMPERATURE_STATUS_NORMAL);
+    test_temperature(85.0, TEMPERATURE_STATUS_CRITICAL);
+    printf("PASS: Valid temperature range boundaries.\n");
+
+    /* Out-of-range temperature tests. */
+    test_invalid_temperature(-40.1);
+    test_invalid_temperature(85.1);
+    printf("PASS: Out-of-range temperature rejection.\n");
+
     /* Invalid argument tests. */
     assert(!processor_process(NULL, &result));
     assert(!processor_process(&sample, NULL));
@@ -65,15 +89,9 @@ int main(void)
     printf("PASS: Invalid sensor sample rejection.\n");
 
     /* Non-finite temperature tests. */
-    sample.valid = true;
-    sample.temperature_c = NAN;
-    assert(!processor_process(&sample, &result));
-
-    sample.temperature_c = INFINITY;
-    assert(!processor_process(&sample, &result));
-
-    sample.temperature_c = -INFINITY;
-    assert(!processor_process(&sample, &result));
+    test_invalid_temperature(NAN);
+    test_invalid_temperature(INFINITY);
+    test_invalid_temperature(-INFINITY);
     printf("PASS: NaN and infinity rejection.\n");
 
     printf("\n=== All processor tests passed ===\n");
