@@ -532,6 +532,26 @@ The temperature-processing module was extended with input range validation.
 
 ---
 
+### 8.3 Alert Generation Module
+
+Implemented an independent alert-generation module.
+
+**Files created:**
+- `application/include/alert.h`
+- `application/src/alerts/alert.c`
+- `application/tests/test_alert.c`
+
+**Implemented functionality:**
+- Normal temperature results generate no alert.
+- Warning results generate warning alert events.
+- Critical results generate critical alert events.
+- Alert events preserve temperature, timestamp and sensor source.
+- NULL arguments and invalid temperature status values are rejected.
+
+**Verification:** The alert module compiled successfully using strict C11 warning flags (`-Wall -Wextra -Wpedantic -Werror`). All five alert test groups passed on the Ubuntu host.
+
+**Limitation:** Alert events are generated in memory only. Console notification, persistent logging, and MQTT publishing have not yet been integrated.
+
 ## 9. Project Directory Structure
 
 The current application directory structure is:
