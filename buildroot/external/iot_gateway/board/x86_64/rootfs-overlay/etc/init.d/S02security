@@ -1,0 +1,18 @@
+#!/bin/sh
+
+case "$1" in
+    start)
+        echo 1 > /proc/sys/kernel/dmesg_restrict
+        echo 2 > /proc/sys/kernel/kptr_restrict
+        echo 1 > /proc/sys/net/ipv4/tcp_syncookies
+        echo "Kernel security settings applied."
+        ;;
+    stop)
+        ;;
+    *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+        ;;
+esac
+
+exit 0

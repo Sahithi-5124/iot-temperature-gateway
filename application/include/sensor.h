@@ -29,6 +29,12 @@ typedef struct {
     bool valid;
 } temperature_sample_t;
 
+/* Selectable simulation behaviour. */
+typedef enum {
+    SENSOR_MODE_DETERMINISTIC = 0,
+    SENSOR_MODE_REALISTIC
+} sensor_mode_t;
+
 /* Backend implementation is hidden from other modules. */
 typedef struct sensor_device sensor_device_t;
 
@@ -36,6 +42,12 @@ typedef struct sensor_device sensor_device_t;
 sensor_status_t sensor_create(
     sensor_source_t source,
     sensor_device_t **out_sensor
+);
+
+/* Configure the behaviour of a simulated sensor. */
+sensor_status_t sensor_set_mode(
+    sensor_device_t *sensor,
+    sensor_mode_t mode
 );
 
 /* Obtain one temperature sample. */

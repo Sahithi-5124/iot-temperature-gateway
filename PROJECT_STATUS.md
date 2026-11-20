@@ -1409,3 +1409,212 @@ Observed:
 - Automatic startup and shutdown have been verified in QEMU, not on physical hardware.
 
 **Milestone status: COMPLETE for Phase 1 QEMU automatic startup, MQTT integration and graceful shutdown.**
+
+---
+
+# Verification Update — 2026-11-21
+
+This section supplements the previous project-status entries with newly verified implementation and integration evidence. Earlier history is preserved.
+
+## 1. Confirmed technical baseline
+
+- Scope: Track B — IoT Temperature-Monitoring Gateway.
+- Primary development environment: native Ubuntu 22.04.
+- Build system: Buildroot 2026.08.2.
+- Linux kernel: 6.18.7.
+- Virtual target: x86-64 QEMU.
+- Root filesystem: Buildroot-generated EXT2, 60 MiB.
+- Application language: C.
+- Init system: BusyBox init.
+- MQTT client: libmosquitto.
+- Host MQTT broker: Mosquitto 2.0.11.
+- Target MQTT package: Mosquitto 2.1.2.
+- Physical board and sensor: PENDING confirmation.
+- All sensor readings verified so far are SIMULATED, not physical measurements.
+
+## 2. Sensor simulation enhancement
+
+Implemented two simulation modes:
+
+- DETERMINISTIC: repeats 25, 30, 36, and 42 degrees Celsius.
+- REALISTIC: increases and decreases in 1-degree steps, bounded between 20 and 42 degrees Celsius.
+
+The application reads IOT_SENSOR_MODE:
+- deterministic selects deterministic simulation.
+- realistic selects bounded realistic simulation.
+- unset defaults to deterministic.
+- invalid values are rejected.
+
+The sensor API supports mode selection and validates invalid arguments, unsupported hardware mode, and invalid simulation modes.
+
+Files updated:
+- application/include/sensor.h
+- application/src/main.c
+- application/src/sensor/sensor.c
+- application/tests/test_sensor.c
+
+Verification:
+- Sensor regression tests compiled with -Wall -Wextra -Wpedantic and passed.
+- 40 realistic samples were checked for valid range and SIMULATED source.
+- Invalid simulation mode was correctly rejected.
+- Hardware mode remains unsupported pending actual board and sensor confirmation.
+
+## 3. Application and threshold verification
+
+The realistic simulation was run on both the Ubuntu host and QEMU guest.
+
+Observed behavior:
+- Temperature increased from 25 to 42 degrees Celsius and then decreased.
+- NORMAL status was observed below the warning threshold.
+- WARNING status and warning alerts were observed at 35–39 degrees Celsius.
+- CRITICAL status and critical alerts were observed at 40–42 degrees Celsius.
+- Status transitions were correct during both increasing and decreasing readings.
+- SIMULATED was retained as the reading source.
+
+Graceful Ctrl+C shutdown was verified:
+- Shutdown requested.
+- MQTT disconnected.
+- Logger closed.
+- Sensor released.
+- Gateway stopped.
+
+## 4. QEMU boot and automatic startup
+
+A fresh EXT2 root filesystem was generated successfully.
+
+Verified image:
+- Path: output/images/rootfs.ext2
+- Size: 62,914,560 bytes (60 MiB).
+- Target application: output/target/usr/bin/iot_gateway.
+- Target executable size: 18,456 bytes.
+
+QEMU was launched using:
+- scripts/qemu/run-qemu.sh
+
+Observed:
+- Linux 6.18.7 booted successfully.
+- Buildroot login prompt appeared.
+- Root login succeeded.
+- The automatic startup service launched /usr/bin/iot_gateway.
+- The gateway process was visible in the guest process list.
+- The startup service could stop the gateway cleanly.
+
+The automatically started service was stopped using:
+- /etc/init.d/S99iot-gateway stop
+
+The realistic simulation was also launched manually inside QEMU and completed its threshold and shutdown checks.
+
+## 5. MQTT integration evidence
+
+The QEMU guest connected to the Ubuntu host Mosquitto broker through the QEMU user-network gateway at 10.0.2.2:1883.
+
+A host subscriber received messages on:
+- iot/temperature/readings
+- iot/temperature/alerts
+
+Observed payloads contained valid JSON with temperature, source, status, and alert information.
+
+A realistic simulation MQTT test produced:
+- 17 temperature-reading messages, covering 25–41 degrees Celsius.
+- 5 WARNING alerts, covering 35–39 degrees Celsius.
+- 2 CRITICAL alerts, covering 40–41 degrees Celsius.
+
+The host Mosquitto service was active during the verified tests.
+
+The tests demonstrate MQTT publication and alert delivery. They do not establish durable offline message buffering or guaranteed delivery during broker outages.
+
+## 6. Security hardening verification
+
+The following security measures have been implemented and verified:
+
+1. Root account password protection using a SHA-512 password hash.
+2. /etc/shadow permissions set to mode 0600 and owned by root.
+3. kernel.dmesg_restrict = 1.
+4. kernel.kptr_restrict = 2.
+5. net.ipv4.tcp_syncookies = 1.
+6. Kernel configuration includes CONFIG_SYN_COOKIES=y.
+7. Kernel configuration includes CONFIG_STRICT_KERNEL_RWX=y and CONFIG_STRICT_MODULE_RWX=y.
+
+The security settings are applied by:
+- buildroot/external/iot_gateway/board/x86_64/rootfs-overlay/etc/init.d/S02security
+
+The script was checked for shell syntax and integrated into the root filesystem overlay.
+
+The three guest sysctl values were checked again after the latest QEMU boot and reported as 1, 2, and 1 respectively.
+
+Do not record passwords or password hashes in project documentation.
+
+## 7. Stock baseline comparison
+
+A separate stock Buildroot configuration was generated using qemu_x86_64_defconfig.
+
+Configuration location:
+- baseline/stock-config/.config
+
+The stock and custom configurations were compared at the configuration-selection level.
+
+Observed:
+- Stock enabled target package selections, excluding host packages: 109.
+- Custom enabled target package selections, excluding host packages: 113.
+- Custom-only selections included cJSON, the IoT gateway package, and Mosquitto-related packages.
+- The custom kernel source configuration explicitly enables SYN cookies.
+
+Important limitation:
+- A separate stock image was not built.
+- No stock image size, boot time, RAM use, CPU use, or runtime performance measurement is available.
+- Package-selection counts are not equivalent to installed runtime package counts.
+- No quantitative performance improvement over stock Linux is claimed.
+
+A second Buildroot build was not attempted because available disk space is limited and the working build must be preserved.
+
+## 8. Git state and files
+
+Repository:
+- ~/OS_Project
+
+Remote:
+- https://github.com/Sahithi-5124/iot-temperature-gateway.git
+
+Active branch:
+- dev/build-system
+
+Latest previously recorded commit:
+- 846d0db897fec113ef963af2316cc202c90e158a
+
+Outstanding changes observed on 2026-11-21 before this documentation update:
+- .gitignore
+- application/include/sensor.h
+- application/src/main.c
+- application/src/sensor/sensor.c
+- application/tests/test_sensor.c
+- buildroot/external/iot_gateway/board/x86_64/linux.config
+- buildroot/external/iot_gateway/board/x86_64/rootfs-overlay/etc/init.d/S02security
+- baseline/stock-config/.config
+
+Git ignore rules were added so generated files under baseline/stock-config are ignored while baseline/stock-config/.config remains trackable.
+
+No new commit or push is claimed by this update.
+
+## 9. Remaining work and limitations
+
+- Confirm the physical board model and revision.
+- Confirm the exact temperature sensor model and electrical requirements.
+- Implement and test the hardware sensor backend after hardware arrives.
+- Perform physical deployment and testing only after board compatibility is confirmed.
+- Improve and document benchmark methodology.
+- Measure boot time, CPU usage, RAM usage, and application resource use under repeatable conditions.
+- Build a separate stock image only if adequate storage becomes available.
+- Review and commit the outstanding verified changes.
+- Prepare the final demonstration and report.
+
+## 10. Current milestone assessment
+
+The Phase 1 virtual Track B gateway has demonstrated:
+- Custom Buildroot Linux image.
+- Successful QEMU boot.
+- Automatic gateway startup and clean shutdown.
+- Deterministic and realistic simulated temperature readings.
+- Threshold processing and alerts.
+- Logging.
+- MQTT reading and alert publication.
+- Multiple verified security-hardening measures.

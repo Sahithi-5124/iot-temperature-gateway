@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define MQTT_BROKER_PORT 1883
 
@@ -60,6 +61,29 @@ int main(void)
         fprintf(stderr, "ERROR: Sensor initialization failed.\n");
         goto cleanup;
     }
+
+    /* Select simulation mode from environment. */
+    const char *sensor_mode_env = getenv("IOT_SENSOR_MODE");
+    sensor_mode_t sensor_mode = SENSOR_MODE_DETERMINISTIC;
+
+    if (sensor_mode_env != NULL) {
+        if (strcmp(sensor_mode_env, "realistic") == 0) {
+            sensor_mode = SENSOR_MODE_REALISTIC;
+        } else if (strcmp(sensor_mode_env, "deterministic") != 0) {
+            fprintf(stderr, "ERROR: Invalid IOT_SENSOR_MODE.\n");
+            goto cleanup;
+        }
+    }
+
+    if (sensor_set_mode(sensor, sensor_mode) != SENSOR_STATUS_OK) {
+        fprintf(stderr, "ERROR: Sensor mode configuration failed.\n");
+        goto cleanup;
+    }
+
+    printf("Sensor initialized successfully. Mode: %s\n",
+           sensor_mode == SENSOR_MODE_REALISTIC
+               ? "REALISTIC" : "DETERMINISTIC");
+
 
     printf("Sensor initialized successfully.\n");
 
