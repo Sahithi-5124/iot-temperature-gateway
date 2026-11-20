@@ -24,13 +24,14 @@
 /rootfs.tar
 
 # Application build artifacts
-/application/iot-gateway
+/application/iot_gateway
 
 # Logs and temporary files
 *.log
 *.tmp
 *.swp
 *~
+/temperature_log.csv
 
 # Benchmark-generated results (keep directory structure)
 # Commit selected, reviewed benchmark results deliberately.

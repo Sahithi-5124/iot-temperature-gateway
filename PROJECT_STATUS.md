@@ -126,7 +126,7 @@ The hardware backend currently returns an unsupported status.
 ```json
 {
   "timestamp": 1795000000,
-  "temperature_c": 30.00,
+  "temperature_c": 36.00,
   "source": "SIMULATED",
   "alert_level": "WARNING"
 }
@@ -162,11 +162,13 @@ The following work has been completed:
 
 The QEMU image is a Phase 1 x86-64 virtual target. It is not yet a physical-board image.
 
+**Important:** The integrated C application has currently been tested on the native Ubuntu host. Its integration into the Buildroot/QEMU image remains pending.
+
 ---
 
 ## 5. C APPLICATION MODULES
 
-All modules below have been developed and tested individually on the Ubuntu host.
+All modules below have been developed and tested individually on the Ubuntu host. They have subsequently been integrated into the main application.
 
 ### 5.1 Sensor module
 
@@ -188,6 +190,7 @@ Implemented features:
 **Test result: PASS**
 
 Verified:
+
 - Simulated sensor initialization.
 - Invalid creation arguments rejected.
 - Invalid read arguments rejected.
@@ -213,6 +216,7 @@ Implemented features:
 **Test result: PASS**
 
 Verified:
+
 - Normal classification.
 - Warning classification.
 - Critical classification.
@@ -261,11 +265,9 @@ CSV fields:
 
 `timestamp,temperature_c,source,status,alert_level`
 
-**Test result: PASS**
+**Individual module test result: PASS**
 
-Host test confirmed CSV output and content verification.
-
-The logger has not yet been integrated into the final running application or verified with persistent storage inside QEMU.
+The logger has also been verified as part of the integrated host application. See Section 7.
 
 ### 5.5 MQTT communication module
 
@@ -289,6 +291,7 @@ Implemented features:
 **Initial MQTT test result: PASS**
 
 Verified:
+
 - Uninitialized client rejected.
 - Broker connection successful.
 - Temperature reading published.
@@ -368,7 +371,7 @@ Status 4 corresponds to `MQTT_STATUS_PUBLISH_ERROR`.
 
 Publishing requests resumed after the broker restarted.
 
-The MQTT subscriber also displayed temperature messages on the reading topic.
+The MQTT subscriber also displayed temperature messages on the reading topic during the test.
 
 ### Reconnection test result
 
@@ -384,9 +387,245 @@ Important limitations:
 
 ---
 
-## 7. CURRENT PROJECT DIRECTORY STRUCTURE
+## 7. MAIN APPLICATION INTEGRATION AND HOST VERIFICATION
 
-Relevant application files:
+**Status: Integrated and successfully tested on native Ubuntu 22.04.**
+
+### 7.1 Main application
+
+Created:
+
+`application/src/main.c`
+
+The main application integrates all five modules:
+
+- Sensor acquisition.
+- Temperature processing.
+- Alert generation.
+- CSV logging.
+- MQTT communication.
+
+The application follows this pipeline:
+
+`Sensor → Processor → Alert Generation → CSV Logging → MQTT Publishing`
+
+The application operates continuously until interrupted using `Ctrl+C`.
+
+Signal handling is implemented to initiate graceful shutdown and release resources.
+
+### 7.2 Compilation verification
+
+The integrated application was successfully compiled on native Ubuntu using strict GCC warning flags.
+
+Command executed:
+
+```bash
+gcc -std=c11 -Wall -Wextra -Wpedantic -Werror \
+-Iapplication/include \
+application/src/main.c \
+application/src/sensor/sensor.c \
+application/src/processing/processor.c \
+application/src/alerts/alert.c \
+application/src/logging/logger.c \
+application/src/mqtt/mqtt.c \
+$(pkg-config --cflags --libs libmosquitto) \
+-lm \
+-o application/iot_gateway
+```
+
+Compilation initially exposed POSIX API declarations being hidden under strict C11.
+
+Added the following feature-test macro at the beginning of `application/src/main.c`, before all includes:
+
+```c
+#define _POSIX_C_SOURCE 200809L
+```
+
+The same compilation command was then executed again.
+
+**Actual result: No compiler output. Compilation completed successfully without warnings or errors.**
+
+Executable verification:
+
+```bash
+ls -lh application/iot_gateway
+```
+
+Observed:
+
+```text
+-rwxrwxr-x 1 sahithi sahithi 22K Nov 20 15:30 application/iot_gateway
+```
+
+### 7.3 Integrated runtime test
+
+The Mosquitto broker was verified as active:
+
+```bash
+sudo systemctl status mosquitto --no-pager
+```
+
+Observed:
+
+- `mosquitto.service` active (running).
+- Broker process running successfully.
+- Local broker available for application testing.
+
+The integrated application was executed using:
+
+```bash
+./application/iot_gateway
+```
+
+Observed startup messages:
+
+```text
+IoT Temperature Monitoring Gateway
+
+Sensor initialized successfully.
+Logger initialized successfully.
+MQTT connected successfully.
+
+Monitoring started. Press Ctrl+C to stop.
+```
+
+Observed simulated temperature sequence:
+
+| Temperature | Expected status | Observed behavior |
+|---|---|---|
+| 25°C | NORMAL | Normal reading |
+| 30°C | NORMAL | Normal reading |
+| 36°C | WARNING | Warning alert generated |
+| 42°C | CRITICAL | Critical alert generated |
+
+The sequence repeated continuously at approximately two-second intervals.
+
+### 7.4 Graceful shutdown verification
+
+The application was interrupted using `Ctrl+C`.
+
+Observed:
+
+```text
+Shutdown requested.
+MQTT disconnected.
+Logger closed.
+Sensor released.
+Gateway stopped.
+```
+
+**Result: PASS — Graceful shutdown and resource cleanup observed.**
+
+### 7.5 CSV logging verification
+
+Runtime log file:
+
+`temperature_log.csv`
+
+Commands executed:
+
+```bash
+wc -l temperature_log.csv
+head -n 20 temperature_log.csv
+```
+
+Observed:
+
+```text
+57 temperature_log.csv
+```
+
+The file contained the expected CSV header:
+
+```csv
+timestamp,temperature_c,source,status,alert_level
+```
+
+Verified records included:
+
+```csv
+1795168924,25.00,SIMULATED,NORMAL,
+1795168926,30.00,SIMULATED,NORMAL,
+1795168928,36.00,SIMULATED,WARNING,
+1795168928,36.00,SIMULATED,ALERT,WARNING
+1795168938,42.00,SIMULATED,CRITICAL,
+1795168938,42.00,SIMULATED,ALERT,CRITICAL
+```
+
+The output confirms:
+
+- Temperature readings are saved.
+- Readings are labelled `SIMULATED`.
+- NORMAL, WARNING and CRITICAL statuses are recorded.
+- Warning and critical alerts are recorded as separate CSV entries.
+- Timestamps are recorded in Unix seconds.
+
+The logger opens the file in append mode. Therefore, the 57 lines may include records from multiple application runs.
+
+**Result: PASS — Integrated CSV logging verified on the Ubuntu host.**
+
+### 7.6 Integrated MQTT publishing verification
+
+The MQTT subscriber was started using:
+
+```bash
+mosquitto_sub -h localhost -p 1883 -t 'iot/temperature/#' -v
+```
+
+The integrated application was started in another terminal.
+
+Actual subscriber output included:
+
+```text
+iot/temperature/readings {"timestamp":1795169268,"temperature_c":25.00,"source":"SIMULATED","status":"NORMAL"}
+
+iot/temperature/readings {"timestamp":1795169270,"temperature_c":30.00,"source":"SIMULATED","status":"NORMAL"}
+
+iot/temperature/readings {"timestamp":1795169272,"temperature_c":36.00,"source":"SIMULATED","status":"WARNING"}
+
+iot/temperature/alerts {"timestamp":1795169272,"temperature_c":36.00,"source":"SIMULATED","alert_level":"WARNING"}
+
+iot/temperature/readings {"timestamp":1795169274,"temperature_c":42.00,"source":"SIMULATED","status":"CRITICAL"}
+
+iot/temperature/alerts {"timestamp":1795169274,"temperature_c":42.00,"source":"SIMULATED","alert_level":"CRITICAL"}
+```
+
+Successfully verified both topics:
+
+- `iot/temperature/readings`
+- `iot/temperature/alerts`
+
+Messages were received by the Mosquitto subscriber with the expected JSON payloads.
+
+**Result: PASS — Actual integrated application-to-broker MQTT delivery and subscriber reception verified on native Ubuntu.**
+
+### 7.7 Integration milestone summary
+
+| Feature | Host verification |
+|---|---|
+| Main application compilation | PASS |
+| Sensor initialization | PASS |
+| Simulated readings | PASS |
+| Temperature classification | PASS |
+| Warning alert generation | PASS |
+| Critical alert generation | PASS |
+| CSV logging | PASS |
+| MQTT broker connection | PASS |
+| MQTT reading publication | PASS |
+| MQTT alert publication | PASS |
+| Subscriber reception | PASS |
+| Continuous monitoring | PASS |
+| Graceful shutdown | PASS |
+
+**Milestone conclusion:** The integrated C application has been successfully compiled and executed on native Ubuntu. Sensor simulation, processing, alert generation, CSV logging and MQTT communication have been verified together.
+
+This does not yet establish that the complete application works inside the custom Buildroot/QEMU image.
+
+---
+
+## 8. CURRENT PROJECT DIRECTORY STRUCTURE
+
+Relevant application source files:
 
 ```text
 application/
@@ -398,6 +637,7 @@ application/
 │   └── mqtt.h
 │
 ├── src/
+│   ├── main.c
 │   ├── sensor/
 │   │   └── sensor.c
 │   ├── processing/
@@ -433,33 +673,44 @@ OS_Project/
 └── README.md
 ```
 
+Additional host-generated files:
+
+- `application/iot_gateway` — compiled executable; should not be committed.
+- `temperature_log.csv` — runtime log; should not be committed.
+
 ---
 
-## 8. HOST TEST SUMMARY
+## 9. HOST TEST SUMMARY
 
 | Component | Test environment | Result |
 |---|---|---|
-| Sensor | Ubuntu host | PASS |
-| Processor | Ubuntu host | PASS |
-| Alert generation | Ubuntu host | PASS |
-| CSV logging | Ubuntu host | PASS |
+| Sensor module | Ubuntu host | PASS |
+| Processor module | Ubuntu host | PASS |
+| Alert generation module | Ubuntu host | PASS |
+| CSV logging module | Ubuntu host | PASS |
 | MQTT initialization and publishing | Ubuntu host | PASS |
 | MQTT subscriber message observation | Ubuntu host | PASS |
 | MQTT broker interruption handling | Ubuntu host | PASS |
 | MQTT automatic reconnection | Ubuntu host | PASS |
 | MQTT publishing after reconnection | Ubuntu host | PASS |
+| Main application compilation | Ubuntu host | PASS |
+| Integrated application runtime | Ubuntu host | PASS |
+| Integrated CSV logging | Ubuntu host | PASS |
+| Integrated MQTT readings | Ubuntu host | PASS |
+| Integrated MQTT alerts | Ubuntu host | PASS |
+| Graceful shutdown | Ubuntu host | PASS |
 
-All individual application modules have been tested on the host.
+All individual application modules and the integrated host application have been tested.
 
 **These results do not yet establish that the complete application works inside the custom QEMU Linux image.**
 
 ---
 
-## 9. GIT STATUS
+## 10. GIT STATUS
 
 Repository:
 
-`https://github.com/Sahithi-5124/iot-temperature-gateway.git`
+https://github.com/Sahithi-5124/iot-temperature-gateway.git
 
 Current development branch:
 
@@ -467,32 +718,50 @@ Current development branch:
 
 Latest confirmed pushed commit:
 
-`7de146f — Implement and test MQTT communication module`
+`29012b3 — Add MQTT automatic reconnection and tests`
 
-The latest confirmed pushed commit contains the initial MQTT communication implementation.
-
-The following reconnection changes have been made after that commit:
+The following MQTT reconnection work and updated project status were committed and pushed:
 
 - Modified `application/src/mqtt/mqtt.c`.
 - Added `application/tests/test_mqtt_reconnect.c`.
+- Updated `PROJECT_STATUS.md`.
 
-**Git commit and push for the reconnection milestone: PENDING.**
+### Current untracked files observed
 
-The updated `PROJECT_STATUS.md` must be included in the next milestone commit.
+The latest Git status command returned:
 
-Do not commit Buildroot output directories, download caches, generated images, or secrets.
+```text
+?? application/iot_gateway
+?? application/src/main.c
+?? temperature_log.csv
+```
+
+Required actions:
+
+| File | Git action |
+|---|---|
+| `application/src/main.c` | Add and commit |
+| `application/iot_gateway` | Exclude using `.gitignore` |
+| `temperature_log.csv` | Exclude using `.gitignore` |
+
+`.gitignore` update and the new main application commit are pending.
+
+Do not commit Buildroot output directories, download caches, generated images, executables, runtime logs or secrets.
 
 ---
 
-## 10. REMAINING WORK
+## 11. REMAINING WORK
 
-### Application integration
+### Application and Buildroot integration
 
-- Create the main application entry point.
-- Integrate sensor, processor, alert, logger and MQTT modules.
-- Establish a complete reading-to-alert-to-publication workflow.
-- Add application-level error handling.
-- Test the integrated application.
+- Update `.gitignore` to exclude the generated executable and runtime CSV log.
+- Commit and push the integrated application and updated project status.
+- Package the C application in the Buildroot external tree.
+- Include the required MQTT client library in the target filesystem.
+- Rebuild the root filesystem and kernel image if required.
+- Run the integrated application inside QEMU.
+- Verify sensor simulation, alerts, CSV logging and MQTT inside QEMU.
+- Configure automatic application startup using BusyBox init.
 
 ### MQTT improvements
 
@@ -502,13 +771,11 @@ Do not commit Buildroot output directories, download caches, generated images, o
 - Test MQTT functionality inside QEMU.
 - Integrate libmosquitto into the Buildroot target filesystem.
 
-### Linux distribution integration
+### Dashboard
 
-- Package the application in Buildroot.
-- Include the required MQTT client library.
-- Configure application startup.
-- Verify application operation inside QEMU.
-- Test logging and network connectivity inside the target image.
+- Set up Node-RED after the core application works in QEMU.
+- Subscribe to `iot/temperature/readings` and `iot/temperature/alerts`.
+- Create temperature visualization and alert indicators.
 
 ### Security
 
@@ -538,26 +805,27 @@ After the exact board and sensor are confirmed:
 
 ---
 
-## 11. CURRENT NEXT TASKS
+## 12. CURRENT NEXT TASKS
 
 Recommended order:
 
-1. Commit and push the MQTT reconnection implementation and updated status document.
-2. Review MQTT startup retry behavior.
-3. Implement the main C application.
-4. Integrate all modules.
-5. Integrate the application and libmosquitto into Buildroot.
-6. Boot and test the complete application in QEMU.
-7. Configure automatic startup.
-8. Implement and verify security measures.
-9. Perform measurements and prepare the demonstration.
-10. Complete physical hardware integration when components arrive.
+1. Update `.gitignore` to exclude `application/iot_gateway` and `temperature_log.csv`.
+2. Review and commit `application/src/main.c` and the updated `PROJECT_STATUS.md`.
+3. Push the integrated application milestone to GitHub.
+4. Package the application in the Buildroot external tree.
+5. Integrate libmosquitto and required runtime dependencies into Buildroot.
+6. Rebuild and test the complete application inside QEMU.
+7. Configure automatic application startup.
+8. Implement and verify security-hardening measures.
+9. Set up Node-RED visualization.
+10. Perform measurements and prepare the demonstration.
+11. Complete physical hardware integration when components arrive.
 
 ---
 
-## 12. CURRENT PROJECT SUMMARY
+## 13. CURRENT PROJECT SUMMARY
 
-**Completed:**
+### Completed
 
 - Buildroot image generation.
 - Linux kernel configuration and build.
@@ -565,26 +833,34 @@ Recommended order:
 - Simulated sensor module.
 - Temperature processing and classification.
 - Alert generation.
-- CSV logging.
-- MQTT communication.
+- CSV logging module.
+- MQTT communication module.
 - MQTT automatic reconnection configuration.
 - Host-side broker interruption and recovery test.
+- Integrated C application main entry point.
+- Strict GCC compilation of integrated application.
+- Continuous simulated temperature monitoring on Ubuntu.
+- Integrated threshold classification and alert generation.
+- Integrated CSV logging verification.
+- Integrated MQTT readings and alerts publication.
+- MQTT subscriber reception verification.
+- Graceful application shutdown and resource cleanup.
 
-**In progress:**
+### In progress
 
-- MQTT reconnection milestone Git commit and push.
-- Complete application integration.
+- `.gitignore` update for generated application executable and runtime CSV log.
+- Git commit and push for the integrated application.
+- Buildroot integration of the application and MQTT dependencies.
 
-**Not yet completed:**
+### Not yet completed
 
-- Main application execution.
-- Buildroot application and MQTT library integration.
 - Full QEMU application testing.
 - Automatic application startup.
 - Security-hardening verification.
 - Performance benchmarking.
+- Node-RED dashboard.
 - Physical sensor integration.
 
-**Current milestone:** Host-side C modules and MQTT communication, including automatic reconnection, have been individually tested. The next major milestone is integrating the modules into one application and running it inside the custom Linux image.
+**Current milestone:** The Buildroot/QEMU base image is verified, and the complete C application has been successfully integrated and tested on native Ubuntu. The next major milestone is packaging the application and MQTT dependencies into Buildroot and running the complete gateway inside QEMU.
 
 ---
