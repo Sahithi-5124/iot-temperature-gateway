@@ -1,14 +1,17 @@
 # PROJECT_STATUS.md
+
 ## Authoritative Project Status — Track B IoT Temperature Gateway
 
 **Last updated:** 2026-11-20
-**Status:** Buildroot kernel and root filesystem images generated; QEMU boot successfully verified. C application development is next.
+
+**Status:** Buildroot image generation and QEMU boot verified. Initial C sensor API and simulated sensor backend implemented and host-side tests passed. Application integration remains in progress.
 
 ## 1. Project goal
 
 Build a lightweight, application-specific Linux distribution for an IoT temperature-monitoring gateway.
 
 The system will:
+
 - Collect temperature readings.
 - Validate and process readings.
 - Detect temperature threshold violations.
@@ -20,7 +23,7 @@ The system will:
 
 **Phase 2:** Integrate the confirmed physical board and sensor.
 
-Simulated readings must always be labelled SIMULATED. Physical readings must be labelled HARDWARE.
+Simulated readings must always be labelled `SIMULATED`. Physical readings must always be labelled `HARDWARE`.
 
 ## 2. Project decisions
 
@@ -54,7 +57,7 @@ The x86-64 QEMU target is a provisional development target. It must not be assum
 - [ ] Finalize MQTT QoS and reconnect policy.
 - [ ] Define warning and critical temperature thresholds.
 - [ ] Define threshold boundary semantics.
-- [ ] Finalize sensor API and application data structures.
+- [ ] Review and synchronize the initial sensor API with the parallel development team.
 - [ ] Select logging path and rotation policy.
 - [ ] Select and configure the final init system.
 - [ ] Determine physical-board kernel configuration, drivers and device tree.
@@ -75,6 +78,11 @@ The x86-64 QEMU target is a provisional development target. It must not be assum
 **Active development branch:** `dev/build-system`
 
 The project is kept in a separate repository. Build outputs, downloads and generated images must not be committed as ordinary source files.
+
+**Development workflow:**
+
+- VS Code is used for writing and editing source code and project files.
+- Ubuntu Terminal (`Ctrl + Alt + T`) is used for commands, compilation, testing and Git operations.
 
 ## 5. Version and environment record
 
@@ -105,11 +113,9 @@ Recorded SHA-256:
 
 Archive integrity was checked with `xz -t`. The SHA-256 has not yet been independently verified against the official checksum.
 
-## 6. Current milestone
+## 6. M3 — Buildroot image generation and QEMU boot verification
 
-**M3 — Buildroot image generation and QEMU boot verification.**
-
-**Status:** Kernel and root filesystem image artifacts generated. The generated system successfully booted in QEMU, accepted a root login, and passed initial environment checks.
+**Status:** COMPLETED — Kernel and root filesystem image artifacts generated. The generated system successfully booted in QEMU, accepted a root login, and passed initial environment checks.
 
 The final exit status of the resumed Buildroot `make` command was not separately captured. Image generation and boot are recorded based on the actual generated files and QEMU test results.
 
@@ -229,8 +235,15 @@ The guest's observed memory was approximately 109.1 MB total. This is a guest me
 - [x] Guest root filesystem type verified.
 - [x] Guest network interface and DHCP configuration verified.
 - [x] BusyBox version verified.
-- [ ] Implement C temperature-monitoring application.
-- [ ] Implement sensor simulation.
+- [x] Initial C sensor API implemented.
+- [x] Initial simulated sensor backend implemented.
+- [x] Sensor module compiled with strict GCC warning flags.
+- [x] Initial sensor runtime tests executed successfully.
+- [x] Null-pointer error-handling tests executed successfully.
+- [x] Automated expected-value assertions for the repeating temperature sequence.
+- [x] Invalid sensor creation argument tests.
+- [ ] Integrate sensor module into the complete C application.
+- [ ] Implement comprehensive input validation.
 - [ ] Implement threshold detection and alerts.
 - [ ] Implement local logging.
 - [ ] Integrate MQTT.
@@ -241,7 +254,82 @@ The guest's observed memory was approximately 109.1 MB total. This is a guest me
 - [ ] Compare against an appropriate stock Linux baseline.
 - [ ] Integrate physical hardware when available.
 
-## 8. Important project files
+## 8. M4 — Initial C sensor module
+
+**Status:** Initial sensor API and simulated backend implemented. Host-side compilation and runtime tests passed.
+
+### Sensor API
+
+File:
+
+`application/include/sensor.h`
+
+Implemented:
+
+- `sensor_source_t`: identifies SIMULATED and HARDWARE sources.
+- `sensor_status_t`: operation result codes.
+- `temperature_sample_t`: temperature in Celsius, Unix timestamp, source and validity.
+- `sensor_device_t`: opaque sensor device structure.
+- `sensor_create()`: creates and initializes a selected sensor backend.
+- `sensor_read()`: obtains one temperature sample.
+- `sensor_destroy()`: releases sensor resources.
+
+The initial API is implemented but remains subject to review and synchronization with the parallel development team.
+
+### Simulation backend
+
+File:
+
+`application/src/sensor/sensor.c`
+
+Implemented:
+
+- Deterministic repeating sample sequence: 25.0, 30.0, 36.0 and 42.0 °C.
+- All successful samples labelled `SIMULATED`.
+- Unix timestamp attached to each sample.
+- Sample validity set to `true` for successful simulated readings.
+- Hardware mode returns `SENSOR_STATUS_UNSUPPORTED`.
+- Invalid pointer arguments are rejected.
+- Dynamic sensor allocation and cleanup implemented.
+
+The sample temperatures are illustrative simulation values, not finalized warning or critical thresholds.
+
+### Sensor tests
+
+File:
+
+`application/tests/test_sensor.c`
+
+Host compiler: GCC 11.4.0 on Ubuntu 22.04.
+
+Compilation flags:
+
+`-std=c11 -Wall -Wextra -Wpedantic -Werror`
+
+Verified tests:
+
+- Sensor initialization.
+- NULL creation output pointer rejection.
+- Invalid sensor source rejection.
+- NULL sensor read argument rejection.
+- NULL sample output argument rejection.
+- Five expected temperature values automatically asserted.
+- Repeating sequence verified: 25.0, 30.0, 36.0, 42.0 and 25.0 °C.
+- Sample validity checks.
+- SIMULATED source checks.
+- Hardware backend correctly rejected.
+
+Compilation and execution both succeeded. The test program printed `All sensor tests passed`.
+
+**Limitations:**
+
+- No physical sensor backend exists.
+- No QEMU application integration has been performed.
+- Threshold detection, alerts, logging and MQTT are not implemented yet.
+- Comprehensive temperature validity and range checking has not yet been implemented.
+- The initial sensor API has not yet been synchronized with the parallel development team.
+
+## 9. Important project files
 
 - `README.md`
 - `PROJECT_STATUS.md`
@@ -250,6 +338,12 @@ The guest's observed memory was approximately 109.1 MB total. This is a guest me
 - `docs/PROJECT_ROADMAP.md`
 - `docs/BUILD_AND_TEST_PLAN.md`
 - `docs/TEAM_SYNC_PROTOCOL.md`
+
+Application files:
+
+- `application/include/sensor.h`
+- `application/src/sensor/sensor.c`
+- `application/tests/test_sensor.c`
 
 Buildroot-specific files:
 
@@ -261,13 +355,13 @@ Buildroot-specific files:
 
 Generated artifacts are kept under the ignored Buildroot output directory and must not be committed.
 
-## 9. Commands executed and verified
+## 10. Commands executed and verified
 
 | Activity | Result |
 |---|---|
 | Ubuntu version inspection | Successful |
 | Git version inspection | Successful |
-| GCC and Make inspection | Successful |
+| GCC and Make version inspection | Successful |
 | QEMU version inspection | Successful |
 | Buildroot archive integrity check | Successful |
 | Buildroot source extraction | Successful |
@@ -285,11 +379,18 @@ Generated artifacts are kept under the ignored Buildroot output directory and mu
 | Guest root filesystem inspection | Successful |
 | Guest network inspection | Successful |
 | BusyBox version inspection | Successful |
+| Sensor API header creation and inspection | Successful |
+| Sensor source compilation with strict GCC flags | Successful |
+| Sensor test program compilation | Successful |
+| Sensor runtime test execution | Successful |
+| Sensor invalid-pointer tests | Successful |
 | Git whitespace validation (`git diff --check`) | Successful |
 
 The final exit status of the resumed Buildroot `make` command was not captured separately. The generated image artifacts and successful QEMU boot provide independent evidence of a working kernel and root filesystem.
 
-## 10. Test results
+Sensor tests were executed on the Ubuntu host, not inside QEMU.
+
+## 11. Test results
 
 | Test | Status |
 |---|---|
@@ -303,18 +404,28 @@ The final exit status of the resumed Buildroot `make` command was not captured s
 | Root filesystem mount | PASS — EXT2 |
 | DHCP networking | PASS — `eth0` received `10.0.2.15` |
 | BusyBox version | VERIFIED — 1.38.0 |
-| Sensor simulation | NOT RUN |
+| Sensor API compilation | PASS — host GCC |
+| Sensor simulation | PASS — host-side test |
+| Sensor sequence and repetition | PASS |
+| Sample validity and source checks | PASS |
+| NULL sensor argument handling | PASS |
+| NULL output argument handling | PASS |
+| Hardware backend rejection | PASS |
+| Automated expected-value assertions | PASS |
+| Invalid sensor creation argument tests | PASS |
+| Comprehensive temperature input validation | NOT IMPLEMENTED |
 | Threshold boundary tests | NOT RUN |
-| Invalid input tests | NOT RUN |
+| Alert generation tests | NOT RUN |
+| Local logging tests | NOT RUN |
 | MQTT publish/subscribe | NOT RUN |
 | Automatic application startup | NOT RUN |
 | Security verification | NOT RUN |
 | Benchmark measurements | NOT RUN |
 | Physical sensor testing | BLOCKED — hardware pending |
 
-No application-level functionality has been claimed as tested yet.
+The initial sensor module has passed host-side tests. The complete temperature-monitoring application has not yet been integrated or tested.
 
-## 11. Resource constraints and limitations
+## 12. Resource constraints and limitations
 
 Last inspected host resources after image generation:
 
@@ -328,7 +439,7 @@ Last inspected host resources after image generation:
 | Swap | 0 GB |
 | Logical CPUs | 12 |
 
-Disk space is now a significant constraint. Avoid unnecessary full rebuilds and do not delete the existing Buildroot output or download cache without first checking dependencies and available alternatives.
+Disk space is a significant constraint. Avoid unnecessary full rebuilds and do not delete the existing Buildroot output or download cache without first checking dependencies and available alternatives.
 
 Additional limitations:
 
@@ -340,23 +451,25 @@ Additional limitations:
 - The Buildroot source archive SHA-256 still needs independent comparison against the official checksum.
 - The final application, MQTT integration and security configuration are not yet implemented.
 
-## 12. Next steps
+## 13. Next steps
 
-1. Review and commit the updated Buildroot configuration and project status.
-2. Begin the C temperature-monitoring application.
-3. Define the sensor abstraction API and simulated sensor backend.
-4. Implement input validation and temperature reading processing.
-5. Implement warning and critical threshold detection.
-6. Implement alert generation and local logging.
-7. Integrate MQTT publishing and receiving.
-8. Configure automatic application startup.
-9. Implement and verify at least three security measures.
-10. Perform functional and integration tests inside QEMU.
-11. Measure image size, boot time, RAM and CPU usage.
-12. Compare against an appropriate stock Linux baseline.
-13. Integrate the confirmed physical board and sensor when available.
+1. Review and synchronize the initial sensor API with the parallel development team.
+2. Extend sensor tests with timestamp validation and additional edge cases.
+3. Implement temperature input validation and processing.
+4. Define warning and critical temperature thresholds.
+5. Define threshold boundary semantics and test them.
+6. Implement alert generation.
+7. Implement local logging.
+8. Finalize MQTT topics and payload schema.
+9. Integrate MQTT publishing.
+10. Configure automatic application startup.
+11. Implement and verify at least three security measures.
+12. Perform functional and integration tests inside QEMU.
+13. Measure image size, boot time, RAM and CPU usage.
+14. Compare against an appropriate stock Linux baseline.
+15. Integrate the confirmed physical board and sensor when available.
 
-## 13. Project record-keeping rules
+## 14. Project record-keeping rules
 
 - This document is the authoritative record of project decisions and progress.
 - Record exact versions only when verified.
@@ -367,3 +480,4 @@ Additional limitations:
 - Record significant configuration changes and their reasons.
 - Update this document whenever a milestone is completed.
 - Preserve the distinction between simulated and physical sensor results.
+- Synchronize shared interfaces and decisions with the parallel development team.
