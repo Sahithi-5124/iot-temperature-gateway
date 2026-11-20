@@ -1269,3 +1269,56 @@ The custom Linux image boots in QEMU, the application runs inside the image, sim
 The next major milestone is automatic application startup, followed by security hardening, benchmarking, documentation and demonstration preparation.
 
 ---
+
+## 11. Reproducible Build Automation and QEMU Verification
+
+**Date:** 2026-11-20
+
+### Build and QEMU automation
+
+Created and committed:
+- `scripts/build/build-image.sh`
+- `scripts/qemu/run-qemu.sh`
+
+Verification:
+- Both scripts passed `bash -n`.
+- Both scripts' help options were verified.
+- Both scripts have executable permissions.
+- QEMU launcher successfully booted the existing Buildroot image to the guest login prompt.
+- No destructive cleanup commands were detected in the build script safety check.
+
+### QEMU guest verification
+
+Verified inside the QEMU guest:
+- Linux kernel: 6.18.7
+- Network interface: `eth0`
+- Guest IPv4 address: `10.0.2.15/24`
+- Gateway application: `/usr/bin/iot_gateway` (approximately 17.9 KB)
+- Root filesystem: 55.1 MB total, 5.8 MB used, 46.2 MB available
+
+These are QEMU simulation results, not physical hardware measurements.
+
+### Git synchronization
+
+- Branch: `dev/build-system`
+- Latest commit: `c6af656` — Add Buildroot build and QEMU launcher scripts
+- Previous commit: `d59c4c9` — Add Buildroot IoT gateway application integration
+- Both commits pushed to `origin/dev/build-system`.
+- Working tree was clean after the push.
+
+### Resource constraint
+
+At the latest host disk check:
+- Available disk space: approximately 3.9 GB
+- Root filesystem usage: 92%
+
+Avoid unnecessary full rebuilds and cleanup operations until disk usage is reviewed.
+
+### Remaining work
+
+- Review and improve reproducible build documentation.
+- Verify build prerequisites and source archive provenance/checksum.
+- Complete security hardening and verify at least three measures.
+- Measure boot time, RAM, image size, and application/MQTT performance using a documented methodology.
+- Prepare a fair stock Linux comparison.
+- Integrate physical hardware only after board and sensor identification.
