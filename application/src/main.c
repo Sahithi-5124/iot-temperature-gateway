@@ -10,8 +10,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <stdlib.h>
 
-#define MQTT_BROKER_HOST "localhost"
 #define MQTT_BROKER_PORT 1883
 
 #define LOG_FILE_PATH "temperature_log.csv"
@@ -29,6 +29,11 @@ static void handle_signal(int signal_number)
 
 int main(void)
 {
+    const char *mqtt_broker_host = getenv("MQTT_BROKER_HOST");
+    if (mqtt_broker_host == NULL || mqtt_broker_host[0] == '\0') {
+        mqtt_broker_host = "localhost";
+    }
+
     sensor_device_t *sensor = NULL;
 
     bool logger_initialized = false;
@@ -68,7 +73,7 @@ int main(void)
     printf("Logger initialized successfully.\n");
 
     /* Connect to MQTT broker. */
-    if (mqtt_init(MQTT_BROKER_HOST, MQTT_BROKER_PORT)
+    if (mqtt_init(mqtt_broker_host, MQTT_BROKER_PORT)
         != MQTT_STATUS_OK) {
         fprintf(stderr, "ERROR: MQTT initialization failed.\n");
         goto cleanup;

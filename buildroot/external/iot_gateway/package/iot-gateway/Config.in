@@ -1,0 +1,8 @@
+config BR2_PACKAGE_IOT_GATEWAY
+	bool "IoT temperature gateway"
+	depends on BR2_USE_MMU
+	depends on !BR2_STATIC_LIBS
+	select BR2_PACKAGE_MOSQUITTO
+	help
+	  Lightweight IoT temperature monitoring application.
+	  Publishes temperature readings and alerts using MQTT.
