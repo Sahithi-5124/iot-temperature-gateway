@@ -552,6 +552,31 @@ Implemented an independent alert-generation module.
 
 **Limitation:** Alert events are generated in memory only. Console notification, persistent logging, and MQTT publishing have not yet been integrated.
 
+### 8.4 Local CSV Logging Module
+
+Implemented a local CSV logging module for recording processed temperature readings and generated alerts.
+
+**Files created:**
+- `application/include/logger.h`
+- `application/src/logging/logger.c`
+- `application/tests/test_logger.c`
+
+**Implemented functionality:**
+- Initializes a CSV log file using a configurable file path.
+- Creates the CSV header when the file is empty.
+- Appends temperature readings without overwriting existing records.
+- Records timestamps, temperature values, sensor source and temperature status.
+- Records warning and critical alert events.
+- Flushes log records after each write.
+- Validates NULL arguments, sensor sources, temperature statuses and alert levels.
+- Closes the log file safely.
+
+**Verification:** The logger test program compiled successfully using strict C11 warning flags (`-Wall -Wextra -Wpedantic -Werror`). All logger tests passed on the Ubuntu host, including CSV content verification.
+
+**Test log location:** `/tmp/iot_gateway_test.csv`
+
+**Limitation:** The current test uses temporary host storage. Persistent logging within the Buildroot gateway has not yet been integrated or verified.
+
 ## 9. Project Directory Structure
 
 The current application directory structure is:
