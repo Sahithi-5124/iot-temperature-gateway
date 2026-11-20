@@ -10,6 +10,8 @@
 #define MQTT_ALERT_TOPIC   "iot/temperature/alerts"
 #define MQTT_KEEPALIVE     60
 #define MQTT_QOS           1
+#define MQTT_RECONNECT_DELAY     2
+#define MQTT_RECONNECT_MAX_DELAY 30
 
 static struct mosquitto *mqtt_client = NULL;
 static bool mqtt_library_initialized = false;
@@ -69,6 +71,19 @@ mqtt_status_t mqtt_init(const char *broker_host, int broker_port)
     mqtt_client = mosquitto_new(NULL, true, NULL);
 
     if (mqtt_client == NULL) {
+        mqtt_cleanup();
+        return MQTT_STATUS_CONNECTION_ERROR;
+    }
+
+    /* Configure automatic reconnection with exponential backoff. */
+    rc = mosquitto_reconnect_delay_set(
+        mqtt_client,
+        MQTT_RECONNECT_DELAY,
+        MQTT_RECONNECT_MAX_DELAY,
+        true
+    );
+
+    if (rc != MOSQ_ERR_SUCCESS) {
         mqtt_cleanup();
         return MQTT_STATUS_CONNECTION_ERROR;
     }
