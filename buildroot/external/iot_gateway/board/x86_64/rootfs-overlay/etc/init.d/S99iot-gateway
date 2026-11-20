@@ -1,0 +1,82 @@
+#!/bin/sh
+
+DAEMON=/usr/bin/iot_gateway
+PIDFILE=/run/iot_gateway.pid
+LOGFILE=/var/log/iot_gateway.log
+MQTT_BROKER_HOST=10.0.2.2
+
+start() {
+    echo "Starting IoT Temperature Gateway..."
+
+    if [ ! -x "$DAEMON" ]; then
+        echo "Gateway executable not found: $DAEMON"
+        return 1
+    fi
+
+    count=0
+    while ! ip route | grep -q '^default'; do
+        count=$((count + 1))
+        if [ "$count" -ge 30 ]; then
+            echo "Network route not available; gateway not started."
+            return 1
+        fi
+        sleep 1
+    done
+
+    mkdir -p /var/log /run
+
+    if ! MQTT_BROKER_HOST="$MQTT_BROKER_HOST" \
+        start-stop-daemon -S -b -m \
+        -p "$PIDFILE" -x "$DAEMON" \
+        -O "$LOGFILE"; then
+        echo "Failed to start gateway."
+        return 1
+    fi
+
+    echo "Gateway startup requested."
+}
+
+stop() {
+    echo "Stopping IoT Temperature Gateway..."
+
+    if [ ! -f "$PIDFILE" ]; then
+        echo "No gateway PID file found."
+        return 0
+    fi
+
+    pid=$(cat "$PIDFILE")
+
+    case "$pid" in
+        ''|*[!0-9]*)
+            echo "Invalid PID file; refusing to signal a process."
+            return 1
+            ;;
+    esac
+
+    start-stop-daemon -K -s INT -p "$PIDFILE" -x "$DAEMON" -o
+
+    count=0
+    while kill -0 "$pid" 2>/dev/null; do
+        count=$((count + 1))
+        if [ "$count" -ge 10 ]; then
+            echo "Gateway did not stop within 10 seconds."
+            return 1
+        fi
+        sleep 1
+    done
+
+    rm -f "$PIDFILE"
+    echo "Gateway stopped."
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) stop && start ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
+
+exit $?

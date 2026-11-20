@@ -1107,10 +1107,10 @@ The eight intended files have been staged and reviewed. The staged whitespace ch
 
 ### 11.2 Application startup
 
-- Configure automatic gateway startup using BusyBox init.
-- Verify application startup during QEMU boot.
-- Verify graceful shutdown through the init system.
-- Confirm the correct startup order and broker availability behavior.
+- Automatic gateway startup through BusyBox init: verified in QEMU.
+- MQTT readings and WARNING/CRITICAL alerts: verified by the Ubuntu host subscriber.
+- Graceful shutdown through the init system: verified.
+- Broker-unavailable startup retry remains to be tested.
 
 ### 11.3 MQTT improvements
 
@@ -1118,7 +1118,7 @@ The eight intended files have been staged and reviewed. The staged whitespace ch
 - Verify actual message delivery after broker recovery with a clearly identified subscriber test.
 - Review behavior during prolonged broker outages.
 - Decide whether application-level message queueing is necessary.
-- Test MQTT functionality during automatic application startup.
+- [x] Test MQTT functionality during automatic application startup (QEMU with host broker available).
 
 ### 11.4 Security
 
@@ -1242,15 +1242,13 @@ Recommended order:
 
 - Saving and reviewing the updated project status document.
 - Reviewing pending Git changes.
-- Committing and pushing the Buildroot application integration.
-- Automatic application startup configuration.
+- Reviewing, committing and pushing the automatic-startup milestone.
 - Security-hardening implementation and verification.
 - Benchmarking and baseline comparison.
 - Demonstration and report preparation.
 
 ### 13.3 Not yet completed
 
-- Automatic gateway startup through BusyBox init.
 - Three verified security-hardening measures.
 - Performance benchmarking.
 - Image-size comparison against a stock Linux baseline.
@@ -1264,9 +1262,9 @@ Recommended order:
 
 **The Phase 1 Buildroot/QEMU IoT temperature-monitoring gateway application is integrated and successfully tested.**
 
-The custom Linux image boots in QEMU, the application runs inside the image, simulated temperature readings are processed, alerts are generated, and MQTT messages are delivered to the Ubuntu host Mosquitto broker.
+The custom Linux image boots in QEMU, the gateway starts automatically through BusyBox init, simulated temperature readings are processed, WARNING and CRITICAL alerts are generated, and MQTT messages are delivered to the Ubuntu host Mosquitto broker. Graceful shutdown through the init system has also been verified.
 
-The next major milestone is automatic application startup, followed by security hardening, benchmarking, documentation and demonstration preparation.
+The next major milestones are security hardening, benchmarking, fair stock-image comparison, documentation and demonstration preparation.
 
 ---
 
@@ -1322,3 +1320,92 @@ Avoid unnecessary full rebuilds and cleanup operations until disk usage is revie
 - Measure boot time, RAM, image size, and application/MQTT performance using a documented methodology.
 - Prepare a fair stock Linux comparison.
 - Integrate physical hardware only after board and sensor identification.
+
+---
+
+## 14. Automatic Gateway Startup and Shutdown Milestone
+
+**Date:** 2026-11-20
+
+### 14.1 Implementation
+
+Configured automatic gateway startup using the Buildroot root filesystem overlay.
+
+Files:
+- `buildroot/external/iot_gateway/configs/iot_gateway_x86_64_defconfig`
+- `buildroot/external/iot_gateway/board/x86_64/rootfs-overlay/etc/init.d/S99iot-gateway`
+
+Implementation details:
+- Enabled the root filesystem overlay in the project defconfig.
+- Added BusyBox init service `S99iot-gateway`.
+- Waits for the default network route before starting the gateway.
+- Starts `/usr/bin/iot_gateway` in the background.
+- Uses `/run/iot_gateway.pid` for process tracking.
+- Uses `MQTT_BROKER_HOST=10.0.2.2` for the current QEMU user-network configuration.
+- Implements stop and restart actions.
+- Sends SIGINT during shutdown to allow application cleanup.
+
+### 14.2 Build and image integration
+
+- Loaded the project defconfig into the Buildroot output configuration.
+- Ran `target-finalize` successfully.
+- Verified that the startup script was copied into `output/target/etc/init.d/`.
+- Verified the target startup script shell syntax.
+- Regenerated `output/images/rootfs.ext2` successfully.
+- Root filesystem image size: 62,914,560 bytes (60 MiB).
+
+### 14.3 Automatic startup verification
+
+After booting the regenerated image in QEMU, the gateway was running without manual execution.
+
+Observed:
+- Gateway process: PID 118.
+- Executable: `/usr/bin/iot_gateway`.
+- PID file: `/run/iot_gateway.pid`.
+- PID file content: `118`.
+- Guest network: `eth0`, address `10.0.2.15`.
+- Default route: `10.0.2.2`.
+
+**Result: PASS — Automatic gateway startup verified inside QEMU.**
+
+### 14.4 MQTT integration during automatic startup
+
+The Ubuntu host subscriber received messages from the automatically started QEMU gateway.
+
+Verified readings:
+- 25°C — NORMAL.
+- 30°C — NORMAL.
+- 36°C — WARNING.
+- 42°C — CRITICAL.
+
+Verified alerts:
+- WARNING alert at 36°C.
+- CRITICAL alert at 42°C.
+
+The payloads identified the source as `SIMULATED`.
+
+**Result: PASS — QEMU automatic-startup MQTT readings and WARNING/CRITICAL alert delivery verified by the host subscriber.**
+
+### 14.5 Graceful shutdown verification
+
+Executed `poweroff` inside the QEMU guest.
+
+Observed:
+- BusyBox init invoked the gateway stop action.
+- Gateway PID 118 was stopped using SIGINT.
+- The startup script reported `Gateway stopped.`
+- Cron, network, klogd and syslogd shutdown followed.
+- QEMU reached `reboot: Power down`.
+
+**Result: PASS — Gateway shutdown through the BusyBox init sequence verified.**
+
+### 14.6 Limitations and pending verification
+
+- MQTT broker address `10.0.2.2` is specific to the current QEMU user-network arrangement. It must not be assumed to be correct for the eventual physical board.
+- Startup retry when the broker is unavailable before the initial MQTT connection is not implemented.
+- The daemon log file was empty during the guest inspection; log-file output redirection needs separate investigation.
+- Persistence across QEMU reboot has not been tested.
+- Physical sensor operation and physical-board startup remain untested.
+- Automatic startup and shutdown have been verified in QEMU, not on physical hardware.
+
+**Milestone status: COMPLETE for Phase 1 QEMU automatic startup, MQTT integration and graceful shutdown.**
