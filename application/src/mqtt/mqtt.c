@@ -15,6 +15,31 @@
 
 static struct mosquitto *mqtt_client = NULL;
 static bool mqtt_library_initialized = false;
+static volatile bool mqtt_connected = false;
+
+/* Callback when client connects or fails to connect to broker. */
+static void on_connect_callback(struct mosquitto *mosq, void *obj, int rc)
+{
+    (void)mosq;
+    (void)obj;
+    if (rc == MOSQ_ERR_SUCCESS) {
+        mqtt_connected = true;
+        fprintf(stdout, "[MQTT] Connection established to broker.\n");
+    } else {
+        mqtt_connected = false;
+        fprintf(stderr, "[MQTT] Broker connection failed: %s (code %d).\n",
+                mosquitto_connack_string(rc), rc);
+    }
+}
+
+/* Callback when client disconnects from broker. */
+static void on_disconnect_callback(struct mosquitto *mosq, void *obj, int rc)
+{
+    (void)mosq;
+    (void)obj;
+    (void)rc;
+    mqtt_connected = false;
+}
 
 /* Convert sensor source to its JSON string representation. */
 static const char *source_to_string(sensor_source_t source)
@@ -49,8 +74,12 @@ static const char *status_to_string(temperature_status_t status)
     }
 }
 
-/* Initialize the MQTT library and connect to the broker. */
-mqtt_status_t mqtt_init(const char *broker_host, int broker_port)
+/* Initialize the MQTT library and connect to the broker with authentication. */
+mqtt_status_t mqtt_init_auth(
+    const char *broker_host,
+    int broker_port,
+    const char *username,
+    const char *password)
 {
     int rc;
 
@@ -75,6 +104,17 @@ mqtt_status_t mqtt_init(const char *broker_host, int broker_port)
         return MQTT_STATUS_CONNECTION_ERROR;
     }
 
+    /* Configure credentials if a username is supplied. */
+    if (username != NULL && username[0] != '\0') {
+        rc = mosquitto_username_pw_set(mqtt_client, username, password);
+        if (rc != MOSQ_ERR_SUCCESS) {
+            fprintf(stderr, "[MQTT] Failed to set credentials: %s\n",
+                    mosquitto_strerror(rc));
+            mqtt_cleanup();
+            return MQTT_STATUS_INVALID_ARGUMENT;
+        }
+    }
+
     /* Configure automatic reconnection with exponential backoff. */
     rc = mosquitto_reconnect_delay_set(
         mqtt_client,
@@ -88,14 +128,23 @@ mqtt_status_t mqtt_init(const char *broker_host, int broker_port)
         return MQTT_STATUS_CONNECTION_ERROR;
     }
 
-    rc = mosquitto_connect(
+    /* Configure callbacks for tracking connection state. */
+    mosquitto_connect_callback_set(mqtt_client, on_connect_callback);
+    mosquitto_disconnect_callback_set(mqtt_client, on_disconnect_callback);
+
+    /* Asynchronous connect allows the gateway to start even if broker is offline,
+     * relying on the background loop to establish connection when available. */
+    rc = mosquitto_connect_async(
         mqtt_client,
         broker_host,
         broker_port,
         MQTT_KEEPALIVE
     );
 
-    if (rc != MOSQ_ERR_SUCCESS) {
+    /* If connect_async returns success or an immediate network error (e.g. ECONNREFUSED
+     * when broker is not yet running), proceed to start the loop so reconnection will
+     * occur automatically once the broker is online. */
+    if (rc != MOSQ_ERR_SUCCESS && rc != MOSQ_ERR_ERRNO && rc != MOSQ_ERR_CONN_REFUSED) {
         mqtt_cleanup();
         return MQTT_STATUS_CONNECTION_ERROR;
     }
@@ -108,6 +157,12 @@ mqtt_status_t mqtt_init(const char *broker_host, int broker_port)
     }
 
     return MQTT_STATUS_OK;
+}
+
+/* Backward-compatible unauthenticated init. */
+mqtt_status_t mqtt_init(const char *broker_host, int broker_port)
+{
+    return mqtt_init_auth(broker_host, broker_port, NULL, NULL);
 }
 
 /* Publish a processed temperature reading as JSON. */
@@ -149,6 +204,10 @@ mqtt_status_t mqtt_publish_temperature(
 
     if (length < 0 || (size_t)length >= sizeof(payload)) {
         return MQTT_STATUS_PUBLISH_ERROR;
+    }
+
+    if (!mqtt_connected) {
+        mosquitto_reconnect_async(mqtt_client);
     }
 
     rc = mosquitto_publish(
@@ -212,6 +271,10 @@ mqtt_status_t mqtt_publish_alert(const alert_event_t *alert)
         return MQTT_STATUS_PUBLISH_ERROR;
     }
 
+    if (!mqtt_connected) {
+        mosquitto_reconnect_async(mqtt_client);
+    }
+
     rc = mosquitto_publish(
         mqtt_client,
         NULL,
@@ -227,9 +290,17 @@ mqtt_status_t mqtt_publish_alert(const alert_event_t *alert)
         : MQTT_STATUS_PUBLISH_ERROR;
 }
 
+/* Check whether the MQTT client is currently connected. */
+bool mqtt_is_connected(void)
+{
+    return mqtt_connected;
+}
+
 /* Disconnect and release MQTT resources. */
 void mqtt_cleanup(void)
 {
+    mqtt_connected = false;
+
     if (mqtt_client != NULL) {
         mosquitto_disconnect(mqtt_client);
         mosquitto_loop_stop(mqtt_client, true);

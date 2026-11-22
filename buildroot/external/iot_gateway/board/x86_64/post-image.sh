@@ -12,6 +12,7 @@ set -eu
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 
 exec qemu-system-x86_64 \
+    -accel kvm -accel tcg \
     -M pc \
     -kernel "${SCRIPT_DIR}/bzImage" \
     -drive "file=${SCRIPT_DIR}/rootfs.ext2,if=virtio,format=raw" \

@@ -38,6 +38,7 @@ echo "Starting IoT Gateway in QEMU..."
 echo "Exit QEMU with Ctrl+A followed by X."
 
 exec qemu-system-x86_64 \
+    -accel kvm -accel tcg \
     -M pc \
     -kernel "$KERNEL" \
     -drive "file=$ROOTFS,if=virtio,format=raw" \

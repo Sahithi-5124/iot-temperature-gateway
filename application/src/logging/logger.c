@@ -1,6 +1,9 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "logger.h"
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 static FILE *log_file = NULL;
 
@@ -31,7 +34,7 @@ logger_status_t logger_init(const char *file_path)
         }
     }
 
-    if (fflush(log_file) != 0) {
+    if (fflush(log_file) != 0 || fsync(fileno(log_file)) != 0) {
         logger_close();
         return LOGGER_STATUS_FILE_ERROR;
     }
@@ -86,9 +89,11 @@ logger_status_t logger_log_temperature(
         return LOGGER_STATUS_FILE_ERROR;
     }
 
-    return fflush(log_file) == 0
-        ? LOGGER_STATUS_OK
-        : LOGGER_STATUS_FILE_ERROR;
+    if (fflush(log_file) != 0 || fsync(fileno(log_file)) != 0) {
+        return LOGGER_STATUS_FILE_ERROR;
+    }
+
+    return LOGGER_STATUS_OK;
 }
 
 logger_status_t logger_log_alert(const alert_event_t *alert)
@@ -133,9 +138,11 @@ logger_status_t logger_log_alert(const alert_event_t *alert)
         return LOGGER_STATUS_FILE_ERROR;
     }
 
-    return fflush(log_file) == 0
-        ? LOGGER_STATUS_OK
-        : LOGGER_STATUS_FILE_ERROR;
+    if (fflush(log_file) != 0 || fsync(fileno(log_file)) != 0) {
+        return LOGGER_STATUS_FILE_ERROR;
+    }
+
+    return LOGGER_STATUS_OK;
 }
 
 void logger_close(void)

@@ -23,12 +23,25 @@ start() {
         sleep 1
     done
 
-    mkdir -p /var/log /run
+    mkdir -p /var/log /run /root /etc/iot-gateway
 
-    if ! MQTT_BROKER_HOST="$MQTT_BROKER_HOST" \
-        start-stop-daemon -S -b -m \
-        -p "$PIDFILE" -x "$DAEMON" \
-        -O "$LOGFILE"; then
+    CONFIG_FILE="/etc/iot-gateway/mqtt.env"
+    if [ -f "$CONFIG_FILE" ]; then
+        chmod 600 "$CONFIG_FILE" 2>/dev/null
+        chown root:root "$CONFIG_FILE" 2>/dev/null
+        set -a
+        . "$CONFIG_FILE"
+        set +a
+    fi
+
+    : "${MQTT_BROKER_HOST:=10.0.2.2}"
+    : "${IOT_LOG_FILE:=/root/temperature_log.csv}"
+
+    export MQTT_BROKER_HOST IOT_LOG_FILE
+
+    if ! start-stop-daemon -S -b -m \
+         -p "$PIDFILE" -x "$DAEMON" \
+         -O "$LOGFILE"; then
         echo "Failed to start gateway."
         return 1
     fi

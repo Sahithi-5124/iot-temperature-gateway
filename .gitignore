@@ -25,6 +25,7 @@
 
 # Application build artifacts
 /application/iot_gateway
+/application/test_*
 
 # Logs and temporary files
 *.log
@@ -44,9 +45,13 @@ __pycache__/
 .env
 .env.*
 !.env.example
+*.env
+!*.env.example
 *.pem
 *.key
 *.secret
+mqtt.env
+/buildroot/external/iot_gateway/board/x86_64/rootfs-overlay/etc/iot-gateway/mqtt.env
 
 # Editor and operating system files
 .vscode/
@@ -55,6 +60,7 @@ __pycache__/
 Thumbs.db
 
 # Buildroot downloaded source and archives
+/buildroot/source
 /buildroot/source/
 
 # Buildroot generated output

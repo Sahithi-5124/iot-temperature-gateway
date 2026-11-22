@@ -17,6 +17,9 @@ fi
 
 set -Eeuo pipefail
 
+# Buildroot requires a clean PATH without spaces from Windows /mnt/c entries.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 BR_VERSION="2026.08.2"
@@ -84,11 +87,11 @@ fi
 if [[ ! -f "$OUTPUT_DIR/images/bzImage" ||
       ! -f "$OUTPUT_DIR/images/rootfs.ext2" ]]; then
 
-    AVAILABLE_KB="$(df -Pk "$ROOT_DIR" | awk 'NR==2 {print $4}')"
+    AVAILABLE_KB="$(df -Pk "$SOURCE_DIR" | awk 'NR==2 {print $4}')"
     REQUIRED_KB=$((25 * 1024 * 1024))
 
     if (( AVAILABLE_KB < REQUIRED_KB )); then
-        echo "ERROR: Less than 25 GB of free space."
+        echo "ERROR: Less than 25 GB of free space in $SOURCE_DIR."
         echo "Free space before starting a full image build."
         exit 1
     fi

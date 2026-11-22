@@ -13,10 +13,18 @@ typedef enum {
     MQTT_STATUS_PUBLISH_ERROR
 } mqtt_status_t;
 
-/* Initialize the MQTT client and connect to the broker. */
+/* Initialize the MQTT client and connect to the broker (unauthenticated). */
 mqtt_status_t mqtt_init(
     const char *broker_host,
     int broker_port
+);
+
+/* Initialize the MQTT client with username and password authentication. */
+mqtt_status_t mqtt_init_auth(
+    const char *broker_host,
+    int broker_port,
+    const char *username,
+    const char *password
 );
 
 /* Publish a processed temperature reading. */
@@ -28,6 +36,9 @@ mqtt_status_t mqtt_publish_temperature(
 mqtt_status_t mqtt_publish_alert(
     const alert_event_t *alert
 );
+
+/* Check whether the MQTT client is currently connected to the broker. */
+bool mqtt_is_connected(void);
 
 /* Disconnect and clean up the MQTT client. */
 void mqtt_cleanup(void);
