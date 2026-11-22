@@ -11,10 +11,11 @@
 ## 1. Executive Context & Scope Disclosure
 
 In accordance with professional embedded engineering standards and the strict assignment rules governing technical integrity:
-- **Phase 1 (Virtual Machine Baseline Development):** Has been **100% completed, built, and verified**. All core operating system objectives (Buildroot compilation, minimal Linux 6.18.7 kernel, SysV init orchestration, C gateway daemon, mathematical validation, threshold classification, durable CSV logging with `fsync()`, authenticated MQTT with QoS 1, and system security hardening) are operational on the x86_64 QEMU virtual platform.
+- **Phase 1 (Virtual Machine Baseline Development):** Core operating system milestones (Buildroot compilation, minimal Linux 6.18.7 kernel, SysV init orchestration, C gateway daemon, mathematical validation, threshold classification, durable CSV logging with `fsync()`, authenticated MQTT with QoS 1, and 5 security hardening controls) have been **built, verified, and tested in QEMU**.
+- **Partially Implemented Systems:** The **Read-Only Root plus OverlayFS** filesystem layout is partially implemented (volatile directories use `tmpfs`, but the root partition is currently mounted read-write for Phase 1 debugging).
 - **Phase 2 (Physical Hardware Integration):** Remains **PENDING HARDWARE CONFIRMATION**. Physical sensor deployment, board-specific Device Tree authoring, electrical bench power measurements, and hardware secure boot cannot be fabricated in the absence of physical silicon.
 
-This document details every requirement that remains pending, explains why it could not be completed in Phase 1, and provides an actionable engineering roadmap to close each gap upon hardware receipt.
+This document details every requirement that remains pending or partially implemented, explains why it could not be completed in Phase 1, and provides an actionable engineering roadmap to close each gap upon hardware receipt.
 
 ---
 
@@ -112,7 +113,34 @@ This document details every requirement that remains pending, explains why it co
 
 ---
 
-### Gap 3: Physical Power Consumption Benchmarking
+### Gap 3: Filesystem Layout — Read-Only Root plus OverlayFS
+
+#### 1. Current Repository State
+- In Phase 1 QEMU testing, the root filesystem on `/dev/vda` is mounted **read-write (`rw`)** (`rootwait root=/dev/vda console=ttyS0`).
+- Volatile directories `/tmp`, `/var/run`, and `/var/log` are RAM-backed on `tmpfs` (`/var/run -> ../tmp/run`, `/var/log -> ../tmp/log`).
+- Persistent telemetry records are written directly to `/root/temperature_log.csv` on the read-write `/dev/vda` root filesystem with `fsync()`.
+- Runtime configuration `/etc/iot-gateway/mqtt.env` is stored directly on `/dev/vda`.
+- On reboot, ephemeral logs in `/var/log` are wiped, while `/root/temperature_log.csv` and `mqtt.env` survive on the ext2 virtual disk.
+
+#### 2. Why Incomplete in Phase 1
+- Mounting root read-write during Phase 1 virtual development was a deliberate engineering decision: it facilitated rapid iteration on runtime credentials, interactive debugging, and direct verification that local CSV records survived reboot cycles without requiring complex multi-partition initramfs scripts before physical storage geometries were known.
+
+#### 3. Action Plan & Required Implementation for Phase 2
+1. **Kernel Configuration:** Enable `CONFIG_OVERLAY_FS=y` in `linux.config`.
+2. **Buildroot Setting:** Set `BR2_TARGET_GENERIC_REMOUNT_ROOTFS_RW=n` in the defconfig.
+3. **Boot Arguments:** Change kernel boot parameters to mount root read-only (`root=/dev/mmcblk0p2 ro`).
+4. **Init Script / Overlay Setup:**
+   Mount a `tmpfs` RAM disk at `/run/overlay` with `upperdir=/run/overlay/upper` and `workdir=/run/overlay/work`. Execute an OverlayFS mount:
+   ```sh
+   mount -t overlay overlay -o lowerdir=/etc,upperdir=/run/overlay/upper,workdir=/run/overlay/work /etc
+   ```
+   This ensures that any runtime changes to `/etc` exist only in volatile RAM, while the physical rootfs remains immutable and protected against corruption.
+5. **Persistent Partition:**
+   Format a dedicated persistent partition (`/dev/mmcblk0p4`, EXT4) mounted at `/data`. Reconfigure the gateway daemon via `IOT_LOG_FILE=/data/temperature_log.csv`, completely decoupling persistent telemetry logs from the read-only operating system partition.
+
+---
+
+### Gap 4: Physical Power Consumption Benchmarking
 
 #### 1. Current Repository State
 - Power consumption is cataloged in `docs/benchmarks.md` and `FINAL_PROJECT_REPORT.md` as `NOT MEASURED (PENDING PHYSICAL HARDWARE)`.
@@ -134,11 +162,11 @@ This document details every requirement that remains pending, explains why it co
 
 ---
 
-### Gap 4: Hardware Secure Boot & Signed Dual-Partition OTA Updates
+### Gap 5: Hardware Secure Boot & Signed Dual-Partition OTA Updates
 
 #### 1. Current Repository State
 - Software-level security hardening (kernel sysctls, credential file permissions 0600, compiler protections, and authenticated MQTT with ACLs) is **100% complete and verified**.
-- Hardware secure boot and cryptographic Over-The-Air (OTA) updates are documented in Section 13.4 of the Technical Report as **PROPOSED / FUTURE WORK**.
+- Hardware secure boot and cryptographic Over-The-Air (OTA) updates are documented in Section 13.5 of the Technical Report as **PROPOSED / FUTURE WORK**.
 
 #### 2. Why Incomplete in Phase 1
 - Hardware Secure Boot requires a physical hardware Root of Trust: on-chip One-Time-Programmable (OTP) eFuses, a Trusted Platform Module (TPM 2.0), or a Cryptographic Secure Element (e.g., ATECC608A) containing burned public key hashes.
@@ -167,7 +195,7 @@ This document details every requirement that remains pending, explains why it co
 
 ---
 
-### Gap 5: Persistent On-Disk MQTT Transaction Queuing
+### Gap 6: Persistent On-Disk MQTT Transaction Queuing
 
 #### 1. Current Repository State
 - The gateway daemon implements non-blocking asynchronous reconnection via `mosquitto_connect_async()` and `mosquitto_loop_start()`.
@@ -190,9 +218,10 @@ This document details every requirement that remains pending, explains why it co
 
 | Project Subsystem | Phase 1 Status (Current) | Phase 2 Status (Roadmap) | Defensible Viva Position |
 |---|---|---|---|
-| **OS & Kernel Build** | **Complete & Verified** | Architecture Retained | Full custom Buildroot and Linux 6.18.7 kernel verified in QEMU in 1.73s. |
+| **OS & Kernel Build** | **Complete & Verified** | Architecture Retained | Full custom Buildroot and Linux 6.18.7 kernel verified in QEMU in 1.73s to prompt, 1.82s to readiness. |
 | **Gateway Application** | **Complete & Verified** | Logic Retained | C11 architecture, validation, classification, CSV logging, and MQTT QoS 1 pass all unit and integration tests. |
 | **Sensor Telemetry** | **Simulated & Verified** | Pending Physical Sensor | All telemetry is honestly tagged `SIMULATED`; abstraction layer is fully prepared for Phase 2 IIO driver integration. |
+| **Filesystem Layout** | **Partially Implemented** | Full Read-Only + OverlayFS | Volatile directories use `tmpfs` in RAM; rootfs mounted rw for Phase 1 debugging; full OverlayFS roadmapped for Phase 2. |
 | **Security Hardening** | **Complete & Verified** | Expanded to Hardware | 5 software/kernel security controls verified; hardware secure boot and signed updates specified as Phase 2 future work. |
 | **Power & Device Tree** | **Disclosed as Pending** | Bench Measurement Plan | Device trees are N/A on x86 ACPI systems; physical power cannot be measured in virtual QEMU. Explicit disclosures protect academic integrity. |
 

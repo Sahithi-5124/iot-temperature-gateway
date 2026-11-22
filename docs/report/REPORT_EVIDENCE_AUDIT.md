@@ -53,44 +53,48 @@ Every claim made in the revised Technical Report (`FINAL_PROJECT_REPORT.md`) has
 | 17 | Telemetry published to `iot/temperature/readings`. | Section 12.1 | `application/src/mqtt/mqtt.c` (Line 124: `topic = "iot/temperature/readings"`). | **VERIFIED WITH EVIDENCE** |
 | 18 | Alerts published to `iot/temperature/alerts`. | Section 12.1 | `application/src/mqtt/mqtt.c` (Line 160: `topic = "iot/temperature/alerts"`). | **VERIFIED WITH EVIDENCE** |
 | 19 | Payloads transmitted with MQTT **QoS 1**. | Section 12.1 | `application/src/mqtt/mqtt.c` (Lines 135, 171: `qos = 1`). | **VERIFIED WITH EVIDENCE** |
-| 20 | Host Mosquitto blocks anonymous access. | Section 12.2 | `/etc/mosquitto/conf.d/iot-gateway.conf` (`allow_anonymous false`). Verified via `scripts/test-mqtt-auth.sh`. | **VERIFIED WITH EVIDENCE** |
-| 21 | Least privilege ACLs for publisher and subscriber. | Section 12.2 | `/etc/mosquitto/acl.conf` (`gateway_pub` write-only; `monitor_sub` read-only). Verified via `scripts/test-mqtt-auth.sh`. | **VERIFIED WITH EVIDENCE** |
-| 22 | Runtime credentials loaded from `/etc/iot-gateway/mqtt.env`. | Section 12.3 | `application/src/main.c` (Lines 106–114: `load_env_file()`), `application/src/mqtt/mqtt.c` (`mosquitto_username_pw_set()`). | **VERIFIED WITH EVIDENCE** |
-| 23 | Password database `/etc/mosquitto/passwd` locked to 0600. | Section 12.2 | Host file permissions: `-rw------- 1 mosquitto mosquitto`. Verified in `scripts/test-mqtt-auth.sh`. | **VERIFIED WITH EVIDENCE** |
-| 24 | Non-blocking reconnect loop with exponential backoff. | Section 12.4 | `application/src/mqtt/mqtt.c` (`mosquitto_connect_async()`, `mosquitto_loop_start()`, `reconnect_delay_s`). | **VERIFIED WITH EVIDENCE** |
+| 20 | Telemetry sampling frequency is **0.5 Hz (2s interval)**. | Section 12.1, 16.1 | `application/src/main.c` (Line 19: `#define READING_INTERVAL_SECONDS 2`). | **VERIFIED WITH EVIDENCE** |
+| 21 | Host Mosquitto blocks anonymous access. | Section 12.2 | `/etc/mosquitto/conf.d/iot-gateway.conf` (`allow_anonymous false`). Verified via `scripts/test-mqtt-auth.sh`. | **VERIFIED WITH EVIDENCE** |
+| 22 | Least privilege ACLs for publisher and subscriber. | Section 12.2 | `/etc/mosquitto/acl.conf` (`gateway_pub` write-only; `monitor_sub` read-only). Verified via `scripts/test-mqtt-auth.sh`. | **VERIFIED WITH EVIDENCE** |
+| 23 | Runtime credentials loaded from `/etc/iot-gateway/mqtt.env`. | Section 12.3 | `application/src/main.c` (Lines 106–114: `load_env_file()`), `application/src/mqtt/mqtt.c` (`mosquitto_username_pw_set()`). | **VERIFIED WITH EVIDENCE** |
+| 24 | Password database `/etc/mosquitto/passwd` locked to 0600. | Section 12.2 | Host file permissions: `-rw------- 1 mosquitto mosquitto`. Verified in `scripts/test-mqtt-auth.sh`. | **VERIFIED WITH EVIDENCE** |
+| 25 | Non-blocking reconnect loop with exponential backoff. | Section 12.4 | `application/src/mqtt/mqtt.c` (`mosquitto_connect_async()`, `mosquitto_loop_start()`, `reconnect_delay_s`). | **VERIFIED WITH EVIDENCE** |
 
-### D. System Hardening & Boot Automation
+### D. System Hardening & Filesystem Layout
 
 | # | Specific Report Claim | Report Section | Supporting Evidence (File / Command / Output) | Audit Finding |
 |---|---|---|---|---|
-| 25 | Kernel pointer restriction `kernel.kptr_restrict = 2`. | Section 13.2 | `rootfs-overlay/etc/init.d/S02security` (Line 6). Verified via guest `sysctl kernel.kptr_restrict`. | **VERIFIED WITH EVIDENCE** |
-| 26 | Kernel ring buffer restriction `kernel.dmesg_restrict = 1`. | Section 13.2 | `rootfs-overlay/etc/init.d/S02security` (Line 5). Verified via guest `sysctl kernel.dmesg_restrict`. | **VERIFIED WITH EVIDENCE** |
-| 27 | TCP SYN cookies enabled `net.ipv4.tcp_syncookies = 1`. | Section 13.2 | `rootfs-overlay/etc/init.d/S02security` (Line 7) & `linux.config`. Verified via guest `sysctl net.ipv4.tcp_syncookies`. | **VERIFIED WITH EVIDENCE** |
-| 28 | Gateway auto-starts on boot via SysV init script. | Section 13.1 | `rootfs-overlay/etc/init.d/S99iot-gateway` (Spawns `/usr/bin/iot_gateway` via `start-stop-daemon`). | **VERIFIED WITH EVIDENCE** |
-| 29 | Compiler hardening flags applied. | Section 13.3 | `application/Makefile` (`-D_FORTIFY_SOURCE=2`, `-fstack-protector-strong`, `-fPIE -pie`, `-Wl,-z,relro,-z,now`). | **VERIFIED WITH EVIDENCE** |
+| 26 | Kernel pointer restriction `kernel.kptr_restrict = 2`. | Section 13.3 | `rootfs-overlay/etc/init.d/S02security` (Line 6). Verified via guest `sysctl kernel.kptr_restrict`. | **VERIFIED WITH EVIDENCE** |
+| 27 | Kernel ring buffer restriction `kernel.dmesg_restrict = 1`. | Section 13.3 | `rootfs-overlay/etc/init.d/S02security` (Line 5). Verified via guest `sysctl kernel.dmesg_restrict`. | **VERIFIED WITH EVIDENCE** |
+| 28 | TCP SYN cookies enabled `net.ipv4.tcp_syncookies = 1`. | Section 13.3 | `rootfs-overlay/etc/init.d/S02security` (Line 7) & `linux.config`. Verified via guest `sysctl net.ipv4.tcp_syncookies`. | **VERIFIED WITH EVIDENCE** |
+| 29 | Gateway auto-starts on boot via SysV init script. | Section 13.1 | `rootfs-overlay/etc/init.d/S99iot-gateway` (Spawns `/usr/bin/iot_gateway` via `start-stop-daemon`). | **VERIFIED WITH EVIDENCE** |
+| 30 | Volatile directories `/tmp`, `/var/run`, `/var/log` on `tmpfs`. | Section 13.2 | Built-in Buildroot skeleton symlinks `/var/log -> ../tmp/log`; `/tmp` mounted `tmpfs`. | **VERIFIED WITH EVIDENCE** |
+| 31 | Read-only root plus OverlayFS status. | Section 13.2 | Root is mounted `rw` in Phase 1; OverlayFS is roadmapped for Phase 2. Accurately documented as `PARTIALLY IMPLEMENTED (ROADMAP)`. | **QUALIFIED / SCOPED** |
+| 32 | Compiler hardening flags applied. | Section 13.4 | `application/Makefile` (`-D_FORTIFY_SOURCE=2`, `-fstack-protector-strong`, `-fPIE -pie`, `-Wl,-z,relro,-z,now`). | **VERIFIED WITH EVIDENCE** |
 
 ### E. Empirical Benchmarks & Comparisons
 
 | # | Specific Report Claim | Report Section | Supporting Evidence (File / Command / Output) | Audit Finding |
 |---|---|---|---|---|
-| 30 | Cold boot time is **1.73 seconds**. | Section 16.1 | Wall-clock timer measured from QEMU invocation to login prompt recorded in `docs/benchmarks.md`. | **VERIFIED WITH EVIDENCE** |
-| 31 | Kernel image (`bzImage`) size is **6.34 MiB** (6,652,928 B). | Section 16.1 | `stat -c %s buildroot/source/buildroot-2026.08.2/output/images/bzImage` $\rightarrow$ 6,652,928 bytes. | **VERIFIED WITH EVIDENCE** |
-| 32 | Rootfs image (`rootfs.ext2`) size is **60.00 MiB** (62,914,560 B). | Section 16.1 | `stat -c %s buildroot/source/buildroot-2026.08.2/output/images/rootfs.ext2` $\rightarrow$ 62,914,560 bytes. | **VERIFIED WITH EVIDENCE** |
-| 33 | Combined image footprint is **66.34 MiB** (69,567,488 B). | Section 16.1 | Sum of `bzImage` and `rootfs.ext2` file sizes. | **VERIFIED WITH EVIDENCE** |
-| 34 | Steady-state system RAM consumption is **13 MiB**. | Section 16.1 | Recorded from `free -m` inside guest VM: `used: 13, free: 206, available: 218` (documented in `docs/benchmarks.md`). | **VERIFIED WITH EVIDENCE** |
-| 35 | Gateway daemon RSS is **6.68 MiB** (6,688 kB). | Section 16.1 | Extracted from `/proc/<pid>/status` (`VmRSS: 6688 kB`) recorded in `docs/benchmarks.md`. | **VERIFIED WITH EVIDENCE** |
-| 36 | Gateway steady-state CPU utilization is **0.0% / < 0.2%**. | Section 16.1 | Sampled over 60s via `top -b` in guest VM (documented in `docs/benchmarks.md`). | **VERIFIED WITH EVIDENCE** |
-| 37 | Storage reduction vs stock Ubuntu Server is **97.8%**. | Section 16.2 | Calculated: $(2800\,\text{MiB} - 60\,\text{MiB}) / 2800\,\text{MiB} \times 100\% = 97.85\%$. Exceeds 40% target. | **VERIFIED WITH EVIDENCE** |
-| 38 | Stock Buildroot comparison rootfs is **23.5% smaller**. | Section 16.2 | Stock `qemu_x86_64_defconfig` rootfs (~78.5 MiB) vs Custom rootfs (60.0 MiB). | **VERIFIED WITH EVIDENCE** |
-| 39 | Physical electrical power consumption. | Section 16.1 | Stated as `NOT MEASURED (PENDING PHYSICAL HARDWARE)` due to virtual hypervisor limitation. | **QUALIFIED / SCOPED** |
+| 33 | Cold boot time is **1.73s to prompt**, **1.82s to daemon**. | Section 16.1 | Wall-clock timer from QEMU invocation to login prompt (1.73s) and first CSV entry (1.82s) in `docs/benchmarks.md`. | **VERIFIED WITH EVIDENCE** |
+| 34 | Kernel image (`bzImage`) size is **6.34 MiB** (6,652,928 B). | Section 16.1 | `stat -c %s buildroot/source/buildroot-2026.08.2/output/images/bzImage` $\rightarrow$ 6,652,928 bytes. | **VERIFIED WITH EVIDENCE** |
+| 35 | Rootfs image (`rootfs.ext2`) size is **60.00 MiB** (62,914,560 B). | Section 16.1 | `stat -c %s buildroot/source/buildroot-2026.08.2/output/images/rootfs.ext2` $\rightarrow$ 62,914,560 bytes. | **VERIFIED WITH EVIDENCE** |
+| 36 | Combined image footprint is **66.34 MiB** (69,567,488 B). | Section 16.1 | Sum of `bzImage` and `rootfs.ext2` file sizes. | **VERIFIED WITH EVIDENCE** |
+| 37 | Steady-state system RAM consumption is **13 MiB**. | Section 16.1 | Recorded from `free -m` inside guest VM: `used: 13, free: 206, available: 218` (documented in `docs/benchmarks.md`). | **VERIFIED WITH EVIDENCE** |
+| 38 | Gateway daemon RSS is **6.68 MiB** (6,688 kB). | Section 16.1 | Extracted from `/proc/<pid>/status` (`VmRSS: 6688 kB`) recorded in `docs/benchmarks.md`. | **VERIFIED WITH EVIDENCE** |
+| 39 | Gateway CPU is **0.0% steady-state** (peak < 0.2%). | Section 16.1 | Sampled over 60s via `top -b` in guest VM (documented in `docs/benchmarks.md`). | **VERIFIED WITH EVIDENCE** |
+| 40 | Rootfs reduction vs stock Ubuntu Server is **97.9%**. | Section 16.2 | Calculated: $(2800\,\text{MiB} - 60\,\text{MiB}) / 2800\,\text{MiB} \times 100\% = 97.857\% \approx 97.9\%$. | **VERIFIED WITH EVIDENCE** |
+| 41 | Total storage reduction vs stock Ubuntu is **97.6%**. | Section 16.2 | Calculated: $(2814.8\,\text{MiB} - 66.34\,\text{MiB}) / 2814.8\,\text{MiB} \times 100\% = 97.643\% \approx 97.6\%$. | **VERIFIED WITH EVIDENCE** |
+| 42 | Stock Buildroot comparison rootfs is **24.4% smaller**. | Section 16.2 | Stock `qemu_x86_64_defconfig` (87.7 MiB) vs Custom image (66.34 MiB) $\rightarrow 24.36\%$. | **VERIFIED WITH EVIDENCE** |
+| 43 | Physical electrical power consumption. | Section 16.1 | Stated as `NOT MEASURED (PENDING PHYSICAL HARDWARE)` due to virtual hypervisor limitation. | **QUALIFIED / SCOPED** |
 
 ### F. Team Collaboration & Governance
 
 | # | Specific Report Claim | Report Section | Supporting Evidence (File / Command / Output) | Audit Finding |
 |---|---|---|---|---|
-| 40 | Four-member team structure and task ownership. | Section 1.2 | `docs/TEAM_TASKS.md` (Defines Member 1, 2, 3, 4 roles), `docs/TEAM_SYNC_PROTOCOL.md`. | **VERIFIED WITH EVIDENCE** |
-| 41 | Clean Git history with 19 structured commits. | Section 17.2 | `git log --oneline` shows 19 commits spanning initial setup to final verification. | **VERIFIED WITH EVIDENCE** |
-| 42 | No plaintext passwords or credentials committed. | Section 12.3, 17 | `.gitignore` excludes `*.env` and `mqtt.env`; `mqtt.env.example` contains sanitized placeholders. | **VERIFIED WITH EVIDENCE** |
+| 44 | Four-member team structure and task ownership. | Section 1.2 | `docs/TEAM_TASKS.md` (Defines Member 1, 2, 3, 4 roles), `docs/TEAM_SYNC_PROTOCOL.md`. | **VERIFIED WITH EVIDENCE** |
+| 45 | Clean Git history with structured commits. | Section 17.2 | `git log --oneline` shows commit history spanning initial setup to final verification. | **VERIFIED WITH EVIDENCE** |
+| 46 | No plaintext passwords or machine-specific paths. | Section 12.3, 24 | All passwords use placeholders (`<CONFIGURED_GATEWAY_PASSWORD>`); commands use relative paths (`/path/to/...`). | **VERIFIED WITH EVIDENCE** |
 
 ---
 
@@ -102,14 +106,15 @@ The following table explicitly highlights requirements that remain pending physi
 |---|---|---|---|---|
 | **Physical Sensor Acquisition** | Track B | Physical single-board computer and DHT11 hardware not yet allocated. | Oscilloscope pulse-width capture, GPIO pin reading via Linux IIO subsystem (`/sys/bus/iio/...`). | Accurately marked as `PENDING (PHASE 2)`. Sensor backend returns `SENSOR_STATUS_UNSUPPORTED`. |
 | **Physical Device Tree (.dts)** | Track B | Provisional development target is x86_64 (which uses ACPI and PCI enumeration, not Device Trees). | Device Tree Source (`.dts`) and compiled blob (`.dtb`) specifying SoC GPIO pin muxing for physical SBC. | Formally explained in Section 9.3; marked as `NOT APPLICABLE (PHASE 1)`. |
+| **Read-Only Root plus OverlayFS** | Track B | Root mounted `rw` in Phase 1 to facilitate rapid debugging and direct CSV logging verification. | `CONFIG_OVERLAY_FS=y`, `root=/dev/mmcblk0p2 ro`, `tmpfs` upperdir for `/etc`, dedicated `/data` persistent partition. | Accurately marked as `PARTIALLY IMPLEMENTED (ROADMAP)` in Section 13.2. |
 | **Physical Power Measurement** | Track B | QEMU virtual machine runs as a software process inside host OS; cannot measure physical milliwatts. | Bench multimeter or USB inline current meter measuring steady-state wattage on physical SBC. | Formally marked as `NOT MEASURED` in benchmark tables. |
-| **Hardware Secure Boot & Signed OTA** | Track B | Requires hardware-fused Root of Trust (TPM 2.0 / SoC secure boot keys) and dual-partition A/B flash. | Dual-partition flash layout (`/dev/mmcblk0p2` / `p3`), cryptographic RSA/Ed25519 signature verification hook. | Formally documented as `PROPOSED / FUTURE WORK` in Section 13.4. |
+| **Hardware Secure Boot & Signed OTA** | Track B | Requires hardware-fused Root of Trust (TPM 2.0 / SoC secure boot keys) and dual-partition A/B flash. | Dual-partition flash layout (`/dev/mmcblk0p2` / `p3`), cryptographic RSA/Ed25519 signature verification hook. | Formally documented as `PROPOSED / FUTURE WORK` in Section 13.5. |
 
 ---
 
 ## 4. Audit Conclusion
 
-All 42 individual technical claims in `FINAL_PROJECT_REPORT.md` were audited. 
-- **38 claims are strictly VERIFIED WITH CONCRETE EVIDENCE** in repository files, code, tests, and measured logs.
-- **4 claims are properly QUALIFIED / SCOPED** as pending physical hardware availability, virtual hypervisor boundaries, or proposed future architecture.
-- **Zero fabricated claims remain in the report.**
+All 46 individual technical claims in `FINAL_PROJECT_REPORT.md` were audited:
+- **41 claims are strictly VERIFIED WITH CONCRETE EVIDENCE** in repository files, code, tests, and measured logs.
+- **5 claims are properly QUALIFIED / SCOPED** as pending physical hardware availability, virtual hypervisor boundaries, or roadmapped filesystem architectures.
+- **Zero fabricated claims or machine-specific paths remain in the report.**

@@ -2,7 +2,7 @@
 
 **Course / Project Title:** Application-Specific Linux Distribution for ML, IoT, CUDA and FPGA Platforms  
 **Track:** Track B — IoT Temperature-Monitoring Gateway  
-**Project Phase:** Phase 1 (Virtual Development Baseline) Verified; Phase 2 (Physical Hardware Integration) Pending  
+**Project Phase Transition:** Phase 1 (Virtual Development Baseline) Verified; Phase 2 (Physical Hardware Integration) Pending  
 **Last Updated:** 23 November 2026  
 **Document Location:** `docs/report/REQUIREMENTS_TRACEABILITY_MATRIX.md`  
 
@@ -30,24 +30,27 @@ This matrix provides bidirectional traceability between every formal assignment 
 | **REQ-11** | **Input Validation & Sanity Checks:** Validate readings against physical bounds ([-40°C, 85°C]) and reject NaN/Inf. | Section 11.3 | `application/src/processing/processor.c`<br>`application/tests/test_processor.c` | `test_processor` verifies boundary values and IEEE-754 NaN/Inf rejection. | **COMPLETE AND VERIFIED** |
 | **REQ-12** | **Temperature Classification & Alerts:** Classify temperatures (Normal, Warning, Critical) and generate threshold alerts. | Section 11.3 | `application/src/processing/processor.c`<br>`application/src/alerts/alert.c` | `test_alert` verifies Warning at ≥35°C and Critical at ≥40°C. | **COMPLETE AND VERIFIED** |
 | **REQ-13** | **Local Durable Disk Logging:** Store telemetry in CSV format locally with power-loss durability guarantees. | Section 11.4 | `application/src/logging/logger.c`<br>`application/tests/test_logger.c` | `test_logger` verifies `fflush()` and `fsync()`; persistent file on virtual disk. | **COMPLETE AND VERIFIED** |
-| **REQ-14** | **MQTT Publishing & QoS 1:** Publish telemetry and alerts via MQTT over QoS 1 JSON payloads. | Section 12.1 | `application/src/mqtt/mqtt.c`<br>`application/tests/test_mqtt.c` | Live test captures telemetry on `iot/temperature/readings` and alerts on `alerts`. | **COMPLETE AND VERIFIED** |
+| **REQ-14** | **MQTT Publishing & QoS 1:** Publish telemetry and alerts via MQTT over QoS 1 JSON payloads at 0.5 Hz. | Section 12.1 | `application/src/mqtt/mqtt.c`<br>`application/tests/test_mqtt.c` | Live test captures telemetry on `iot/temperature/readings` and alerts on `alerts`. | **COMPLETE AND VERIFIED** |
 | **REQ-15** | **MQTT Outage Resilience:** Handle network and broker outages with non-blocking reconnection. | Section 12.4 | `application/src/mqtt/mqtt.c`<br>`application/tests/test_mqtt_reconnect.c` | `test_mqtt_reconnect` verifies exponential backoff and continuous local logging. | **COMPLETE AND VERIFIED** |
 | **REQ-16** | **Service Auto-Start on Boot:** Automatically initialize the gateway daemon during system boot. | Section 13.1 | `rootfs-overlay/etc/init.d/S99iot-gateway`<br>`application/src/main.c` | Confirmed `iot_gateway` daemon starts as PID 125 via SysV init during boot. | **COMPLETE AND VERIFIED** |
-| **REQ-17** | **Security Hardening (At least 3 measures):** Implement and verify system-level hardening measures. | Section 13.2 | `rootfs-overlay/etc/init.d/S02security`<br>`application/Makefile`<br>`scripts/test-mqtt-auth.sh` | **5 measures verified:** `kptr_restrict=2`, `dmesg_restrict=1`, `tcp_syncookies=1`, permissions 0600, authenticated MQTT with ACLs. | **COMPLETE AND VERIFIED** |
-| **REQ-18** | **Secure Credential Handling:** Protect runtime secrets; keep passwords out of Git and logs. | Section 12.2, 12.3 | `application/src/main.c`<br>`.gitignore`<br>`rootfs-overlay/etc/iot-gateway/mqtt.env.example` | Dynamic env loader; permissions 0600; `mqtt.env` ignored by Git. | **COMPLETE AND VERIFIED** |
-| **REQ-19** | **Virtual Machine Execution:** Run the customized distribution reliably in a virtual machine (QEMU). | Section 14.3 | `scripts/qemu/run-qemu.sh`<br>`board/x86_64/post-image.sh` | QEMU 8.2.2 boots with KVM hardware acceleration in 1.73s. | **COMPLETE AND VERIFIED** |
-| **REQ-20** | **40% Image-Size Reduction Target:** Achieve at least 40% image-size reduction vs stock distribution. | Section 16.2 | `docs/benchmarks.md`<br>`output/images/rootfs.ext2` | **97.8% rootfs reduction** vs stock Ubuntu Server minimal (60 MB vs 2,800 MB). | **COMPLETE AND VERIFIED** |
-| **REQ-21** | **Reproducibility & Git History:** Clean repository, no secrets, clear documentation, four-member team structure. | Sections 1.2, 17 | `docs/TEAM_TASKS.md`<br>`docs/TEAM_SYNC_PROTOCOL.md`<br>`PROJECT_STATUS.md` | Clean Git working tree on `dev/build-system`; 4-member ownership matrix documented. | **COMPLETE AND VERIFIED** |
-| **REQ-22** | **Physical Hardware Integration:** Confirm board, GPIO wiring, physical DHT11 driver, bench power measurement. | Section 6.1, 20.2 | `docs/report/FINAL_PROJECT_REPORT.md` (Section 20.2: Phase 2 Roadmap) | Hardware backend returns `SENSOR_STATUS_UNSUPPORTED` in Phase 1; physical board pending. | **PENDING (PHASE 2)** |
-| **REQ-23** | **Hardware Secure Boot & Signed OTA:** Hardware root of trust and cryptographic dual-partition A/B updates. | Section 13.4, 21 | `docs/report/FINAL_PROJECT_REPORT.md` (Section 13.4) | Architectural specification documented; physical TPM/ROM signature chain pending. | **PENDING (PHASE 2)** |
+| **REQ-17** | **Filesystem Layout (Read-Only Root plus Overlay):** Mount rootfs read-only with writable tmpfs overlay. | Section 13.2 | Documented in Section 13.2; `S02security`<br>`iot_gateway_x86_64_defconfig` | Writable `/tmp` on `tmpfs` active; rootfs mounted rw in Phase 1; full ro+overlay roadmapped. | **PARTIALLY IMPLEMENTED (ROADMAP)** |
+| **REQ-18** | **Security Hardening (At least 3 measures):** Implement and verify system-level hardening measures. | Section 13.3 | `rootfs-overlay/etc/init.d/S02security`<br>`application/Makefile`<br>`scripts/test-mqtt-auth.sh` | **5 measures verified:** `kptr_restrict=2`, `dmesg_restrict=1`, `tcp_syncookies=1`, permissions 0600, authenticated MQTT with ACLs. | **COMPLETE AND VERIFIED** |
+| **REQ-19** | **Secure Credential Handling:** Protect runtime secrets; keep passwords out of Git and logs. | Section 12.2, 12.3 | `application/src/main.c`<br>`.gitignore`<br>`rootfs-overlay/etc/iot-gateway/mqtt.env.example` | Dynamic env loader; permissions 0600; `mqtt.env` ignored by Git. | **COMPLETE AND VERIFIED** |
+| **REQ-20** | **Virtual Machine Execution:** Run the customized distribution reliably in a virtual machine (QEMU). | Section 14.3 | `scripts/qemu/run-qemu.sh`<br>`board/x86_64/post-image.sh` | QEMU 8.2.2 boots with KVM hardware acceleration in 1.73s to prompt, 1.82s to daemon. | **COMPLETE AND VERIFIED** |
+| **REQ-21** | **40% Image-Size Reduction Target:** Achieve at least 40% image-size reduction vs stock distribution. | Section 16.2 | `docs/benchmarks.md`<br>`output/images/rootfs.ext2` | **97.9% rootfs reduction** and **97.6% total storage reduction** vs stock Ubuntu Server minimal. | **COMPLETE AND VERIFIED** |
+| **REQ-22** | **Reproducibility & Git History:** Clean repository, no secrets, clear documentation, four-member team structure. | Sections 1.2, 17 | `docs/TEAM_TASKS.md`<br>`docs/TEAM_SYNC_PROTOCOL.md`<br>`PROJECT_STATUS.md` | Clean Git working tree on `dev/build-system`; 4-member ownership matrix documented. | **COMPLETE AND VERIFIED** |
+| **REQ-23** | **Physical Hardware Integration:** Confirm board, GPIO wiring, physical DHT11 driver, bench power measurement. | Section 6.1, 20.2 | `docs/report/FINAL_PROJECT_REPORT.md` (Section 20.2: Phase 2 Roadmap) | Hardware backend returns `SENSOR_STATUS_UNSUPPORTED` in Phase 1; physical board pending. | **PENDING (PHASE 2)** |
+| **REQ-24** | **Hardware Secure Boot & Signed OTA:** Hardware root of trust and cryptographic dual-partition A/B updates. | Section 13.5, 21 | `docs/report/FINAL_PROJECT_REPORT.md` (Section 13.5) | Architectural specification documented; physical TPM/ROM signature chain pending. | **PENDING (PHASE 2)** |
 
 ---
 
 ## 3. Compliance Summary Statistics
 
-- **Total Requirements Tracked:** 23
-- **Fully Implemented & Verified in Phase 1:** 21 (91.3%)
-- **Architecturally Specified & Pending Phase 2 Physical Hardware:** 2 (8.7%)
-  - *REQ-22: Physical Sensor & SBC Integration*
-  - *REQ-23: Hardware Secure Boot & Signed OTA Firmware Update Chain*
+- **Total Requirements Tracked:** 24
+- **Fully Implemented & Verified in Phase 1:** 21 (87.5%)
+- **Partially Implemented in Phase 1 (Roadmapped for Phase 2):** 1 (4.2%)
+  - *REQ-17: Filesystem Layout (Read-Only Root plus Overlay)*
+- **Architecturally Specified & Pending Phase 2 Physical Hardware:** 2 (8.3%)
+  - *REQ-23: Physical Sensor & SBC Integration*
+  - *REQ-24: Hardware Secure Boot & Signed OTA Firmware Update Chain*
 - **Requirements Unaccounted For:** 0 (0.0%)
