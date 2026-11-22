@@ -9,8 +9,10 @@ An application-specific, lightweight, secure embedded Linux distribution built f
 
 - **Project Title:** Application-Specific Linux Distribution for ML, IoT, CUDA and FPGA Platforms
 - **Selected Track:** Track B — IoT Temperature-Monitoring Gateway ONLY
-- **Operating Context:** Solo embedded systems engineering project.
-- **Hardware Integration:** Software-only virtual embedded system. Sensor readings are generated through an internal simulation engine and strictly labeled `SIMULATED`. There is no physical board or sensor hardware in the final scope.
+- **Operating Context:** Four-member engineering team (Ubuntu 22.04 LTS reference host + WSL 2.6.3.0 parallel development).
+- **Project Phasing:**
+  - **Phase 1 (Virtual Development Baseline):** Built and verified in QEMU on x86_64. Sensor readings are generated through an internal simulation engine and strictly labeled `SIMULATED`.
+  - **Phase 2 (Physical Hardware Integration):** Architecturally specified and pending physical single-board computer and digital sensor hardware allocation.
 
 The system demonstrates a minimal, hardened Linux distribution tailored specifically to run a single daemon: the C IoT Temperature Gateway. It boots in under 2 seconds, acquires simulated temperature samples, classifies thermal conditions, generates threshold alerts, persists data locally in CSV format, and publishes telemetry and alerts over MQTT with automatic network outage recovery.
 
@@ -99,8 +101,11 @@ The system demonstrates a minimal, hardened Linux distribution tailored specific
 │   ├── benchmarks.md           # Performance, RAM, CPU, boot time & size metrics
 │   ├── demonstration-guide.md  # Step-by-step reproducible live evaluation script
 │   ├── troubleshooting.md      # Troubleshooting build, network, and QEMU issues
-│   └── report/
-│       └── FINAL_PROJECT_REPORT.md # Consolidated formal academic final project report
+│   └── report/                 # Formal academic technical reports & compliance audits
+│       ├── FINAL_PROJECT_REPORT.md           # 24-section audited final project technical report
+│       ├── REQUIREMENTS_TRACEABILITY_MATRIX.md # Matrix mapping requirements to evidence
+│       ├── REPORT_EVIDENCE_AUDIT.md          # Verification audit of all report claims
+│       └── REPORT_GAPS_AND_PENDING_WORK.md   # Transparent gap analysis and Phase 2 roadmap
 ├── licenses/                   # Open-source package licenses and manifests
 │   └── manifest.csv            # Buildroot legal-info compliance manifest
 ├── scripts/                    # Automation and verification scripts

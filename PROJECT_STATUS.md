@@ -1,30 +1,35 @@
 # Project Status — Track B: IoT Temperature-Monitoring Gateway
 
-**Last updated:** 22 November 2026  
-**Operating Context:** Solo Engineering Project  
+**Last updated:** 23 November 2026  
+**Operating Context:** Four-Member Engineering Team (Ubuntu 22.04 LTS & WSL 2.6.3.0 dual workflow)  
 **Repository Branch:** `dev/build-system`  
 **Repository Remote:** `https://github.com/Sahithi-5124/iot-temperature-gateway.git`  
 **Target Architecture:** x86_64  
 **Runtime Platform:** QEMU 8.2.2 (with KVM Hardware Acceleration)  
-**Project Scope:** Track B — Application-Specific Embedded Linux IoT Gateway (Software Simulation Only)
+**Project Scope:** Track B — Application-Specific Embedded Linux IoT Gateway (Phase 1 Virtual Simulation Baseline Verified; Phase 2 Physical Hardware Integration Pending)
 
 ---
 
 ## 1. Project Status Summary
 
-The Track B IoT Temperature-Monitoring Gateway Linux distribution is **fully completed, built, and verified**.
-
-All milestones required for final submission are operational:
+The Track B IoT Temperature-Monitoring Gateway Linux distribution has completed **Phase 1 (Virtual Development & Simulation Baseline)** with all milestones verified:
 1. Custom Buildroot Linux image builds deterministically.
 2. Kernel 6.18.7 boots into BusyBox init in **1.73 seconds**.
 3. C IoT Gateway application starts automatically on boot via `/etc/init.d/S99iot-gateway`.
 4. Sensor engine operates in deterministic and realistic modes; all readings are tagged `SIMULATED`.
 5. Temperature classification boundaries (Normal `<35°C`, Warning `35–39.9°C`, Critical `≥40°C`) and input rejection (`[-40°C, 85°C]`, NaN, Inf) operate accurately.
-6. Local CSV logging flushes and synchronizes records to persistent virtual disk storage at `/root/temperature_log.csv`.
-7. MQTT publisher streams telemetry to `iot/temperature/readings` and alerts to `iot/temperature/alerts` over QoS 1 JSON payloads to host broker at `10.0.2.2:1883`.
+6. Local CSV logging flushes and synchronizes records to persistent virtual disk storage at `/root/temperature_log.csv` via `fsync()`.
+7. MQTT publisher streams telemetry to `iot/temperature/readings` and alerts to `iot/temperature/alerts` over QoS 1 JSON payloads to host broker.
 8. Background asynchronous MQTT reconnection recovers seamlessly across broker outages.
-9. Four distinct security-hardening measures are active and verified inside the guest.
+9. Five distinct security-hardening measures are active and verified inside the guest and broker.
 10. Comprehensive benchmark metrics have been collected and documented.
+11. Phase 2 physical hardware roadmap is fully specified and pending hardware allocation.
+
+### 1.1 Team Ownership & Collaboration Matrix
+- **Member 1 (Native Ubuntu 22.04):** Primary Buildroot configuration, minimal Linux 6.18.7 kernel, image build scripts, QEMU launcher.
+- **Member 2 (WSL 2.6.3.0):** C gateway daemon, sensor abstraction, dual simulation modes, input validation, threshold classification, unit tests.
+- **Member 3 (WSL 2.6.3.0):** MQTT networking module, durable CSV logger, SysV init scripts, broker security, ACLs, authentication tests.
+- **Member 4 (WSL 2.6.3.0):** Requirements traceability, empirical benchmarks, documentation suite, gap analysis, evaluation demo script.
 
 ---
 
@@ -180,16 +185,23 @@ Collected from the booted distribution in QEMU (AMD64, 256M VM RAM, KVM accelera
 
 ## 9. Documentation Index
 
-The complete documentation suite for Track B is located in the [`docs/`](file:///docs/) directory:
+The complete documentation suite for Track B is located in the [`docs/`](docs/) directory:
 
-- [docs/architecture.md](file:///docs/architecture.md) — System architecture, module boundaries, data pipeline, and system diagram
-- [docs/build-guide.md](file:///docs/build-guide.md) — Environment prerequisites, Buildroot configuration, and image generation
-- [docs/virtualization-guide.md](file:///docs/virtualization-guide.md) — Hypervisor evaluation, QEMU configuration, networking, and VirtualBox analysis
-- [docs/application-guide.md](file:///docs/application-guide.md) — C gateway implementation, sensor simulation modes, validation, and threshold policies
-- [docs/mqtt-guide.md](file:///docs/mqtt-guide.md) — MQTT topics, JSON schemas, QoS, reconnection backoff, and host subscriber commands
-- [docs/security.md](file:///docs/security.md) — Kernel memory protections, sysctl runtime hardening, credential security, and live verification
-- [docs/testing.md](file:///docs/testing.md) — Multi-tier test suite results, unit tests, integration tests, and persistence tests
-- [docs/benchmarks.md](file:///docs/benchmarks.md) — Measured performance metrics (boot time, RAM, storage footprint, CPU utilization)
-- [docs/troubleshooting.md](file:///docs/troubleshooting.md) — Common build, networking, buffering, and virtualization pitfalls and resolutions
-- [docs/demonstration-guide.md](file:///docs/demonstration-guide.md) — Step-by-step reproducible evaluation walkthrough for examiners
+### Core Technical Reports (`docs/report/`)
+- [docs/report/FINAL_PROJECT_REPORT.md](docs/report/FINAL_PROJECT_REPORT.md) — Comprehensive 24-section audited academic final project report
+- [docs/report/REQUIREMENTS_TRACEABILITY_MATRIX.md](docs/report/REQUIREMENTS_TRACEABILITY_MATRIX.md) — Traceability matrix mapping requirements to evidence and status
+- [docs/report/REPORT_EVIDENCE_AUDIT.md](docs/report/REPORT_EVIDENCE_AUDIT.md) — Systematic audit verifying all report claims against repository files
+- [docs/report/REPORT_GAPS_AND_PENDING_WORK.md](docs/report/REPORT_GAPS_AND_PENDING_WORK.md) — Transparent gap analysis and Phase 2 physical hardware roadmap
+
+### Engineering Guides (`docs/`)
+- [docs/architecture.md](docs/architecture.md) — System architecture, module boundaries, data pipeline, and system diagram
+- [docs/build-guide.md](docs/build-guide.md) — Environment prerequisites, Buildroot configuration, and image generation
+- [docs/virtualization-guide.md](docs/virtualization-guide.md) — Hypervisor evaluation, QEMU configuration, networking, and VirtualBox analysis
+- [docs/application-guide.md](docs/application-guide.md) — C gateway implementation, sensor simulation modes, validation, and threshold policies
+- [docs/mqtt-guide.md](docs/mqtt-guide.md) — MQTT topics, JSON schemas, QoS, reconnection backoff, and host subscriber commands
+- [docs/security.md](docs/security.md) — Kernel memory protections, sysctl runtime hardening, credential security, and live verification
+- [docs/testing.md](docs/testing.md) — Multi-tier test suite results, unit tests, integration tests, and persistence tests
+- [docs/benchmarks.md](docs/benchmarks.md) — Measured performance metrics (boot time, RAM, storage footprint, CPU utilization)
+- [docs/troubleshooting.md](docs/troubleshooting.md) — Common build, networking, buffering, and virtualization pitfalls and resolutions
+- [docs/demonstration-guide.md](docs/demonstration-guide.md) — Step-by-step reproducible evaluation walkthrough for examiners
 
