@@ -24,13 +24,15 @@
 /rootfs.tar
 
 # Application build artifacts
-/application/iot-gateway
+/application/iot_gateway
+/application/test_*
 
 # Logs and temporary files
 *.log
 *.tmp
 *.swp
 *~
+/temperature_log.csv
 
 # Benchmark-generated results (keep directory structure)
 # Commit selected, reviewed benchmark results deliberately.
@@ -43,12 +45,31 @@ __pycache__/
 .env
 .env.*
 !.env.example
+*.env
+!*.env.example
 *.pem
 *.key
 *.secret
+mqtt.env
+/buildroot/external/iot_gateway/board/x86_64/rootfs-overlay/etc/iot-gateway/mqtt.env
 
 # Editor and operating system files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Buildroot downloaded source and archives
+/buildroot/source
+/buildroot/source/
+
+# Buildroot generated output
+/buildroot/output/
+
+# Buildroot download cache
+/buildroot/dl/
+
+# Buildroot generated images
+/buildroot/images/
+/baseline/stock-config/*
+!/baseline/stock-config/.config

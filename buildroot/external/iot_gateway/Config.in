@@ -1,0 +1,5 @@
+menu "IoT Gateway"
+
+source "$BR2_EXTERNAL_IOT_GATEWAY_PATH/package/iot-gateway/Config.in"
+
+endmenu

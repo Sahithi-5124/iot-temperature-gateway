@@ -1,172 +1,207 @@
-# PROJECT_STATUS.md
-## Authoritative Shared Status — Track B IoT Temperature Gateway
+# Project Status — Track B: IoT Temperature-Monitoring Gateway
 
-**Last updated:** 2026-11-19  
-**Status:** Planning baseline; implementation not yet verified  
-**Rule:** This file is the shared source of truth for both ChatGPT chats and all four team members.
+**Last updated:** 23 November 2026  
+**Operating Context:** Four-Member Engineering Team (Ubuntu 22.04 LTS & WSL 2.6.3.0 dual workflow)  
+**Repository Branch:** `dev/build-system`  
+**Repository Remote:** `https://github.com/Sahithi-5124/iot-temperature-gateway.git`  
+**Target Architecture:** x86_64  
+**Runtime Platform:** QEMU 8.2.2 (with KVM Hardware Acceleration)  
+**Project Scope:** Track B — Application-Specific Embedded Linux IoT Gateway (Phase 1 Virtual Simulation Baseline Verified; Phase 2 Physical Hardware Integration Pending)
 
-## 1. Project goal
+---
 
-Build a lightweight application-specific Linux distribution for an IoT temperature-monitoring gateway. It will collect temperature samples, validate/process them, classify threshold conditions, generate alerts, log readings, and publish readings/alerts through MQTT.
+## 1. Project Status Summary
 
-Phase 1 uses explicitly labelled simulated readings and an x86-64 QEMU target. Phase 2 adds the confirmed physical board and sensor.
+The Track B IoT Temperature-Monitoring Gateway Linux distribution has completed **Phase 1 (Virtual Development & Simulation Baseline)** with all milestones verified:
+1. Custom Buildroot Linux image builds deterministically.
+2. Kernel 6.18.7 boots into BusyBox init in **1.73 seconds**.
+3. C IoT Gateway application starts automatically on boot via `/etc/init.d/S99iot-gateway`.
+4. Sensor engine operates in deterministic and realistic modes; all readings are tagged `SIMULATED`.
+5. Temperature classification boundaries (Normal `<35°C`, Warning `35–39.9°C`, Critical `≥40°C`) and input rejection (`[-40°C, 85°C]`, NaN, Inf) operate accurately.
+6. Local CSV logging flushes and synchronizes records to persistent virtual disk storage at `/root/temperature_log.csv` via `fsync()`.
+7. MQTT publisher streams telemetry to `iot/temperature/readings` and alerts to `iot/temperature/alerts` over QoS 1 JSON payloads to host broker.
+8. Background asynchronous MQTT reconnection recovers seamlessly across broker outages.
+9. Five distinct security-hardening measures are active and verified inside the guest and broker.
+10. Comprehensive benchmark metrics have been collected and documented.
+11. Phase 2 physical hardware roadmap is fully specified and pending hardware allocation.
 
-## 2. Agreed decisions
+### 1.1 Team Ownership & Collaboration Matrix
+- **Member 1 (Native Ubuntu 22.04):** Primary Buildroot configuration, minimal Linux 6.18.7 kernel, image build scripts, QEMU launcher.
+- **Member 2 (WSL 2.6.3.0):** C gateway daemon, sensor abstraction, dual simulation modes, input validation, threshold classification, unit tests.
+- **Member 3 (WSL 2.6.3.0):** MQTT networking module, durable CSV logger, SysV init scripts, broker security, ACLs, authentication tests.
+- **Member 4 (WSL 2.6.3.0):** Requirements traceability, empirical benchmarks, documentation suite, gap analysis, evaluation demo script.
 
-| Decision | Current value | Status |
+---
+
+## 2. Technical Baseline & Verified Versions
+
+| Subsystem | Verified Version | Configuration / Path |
 |---|---|---|
-| Project track | Track B — IoT Gateway | AGREED |
-| Team size | 4 | AGREED |
-| Initial time budget | Approximately 10 hours | AGREED |
-| Primary build environment | Native Ubuntu 22.04 | AGREED |
-| Parallel environment | Windows + WSL 2.6.3.0 | AGREED |
-| Build system | Buildroot | PROVISIONAL pending final comparison/version pin |
-| Initial target | x86-64 QEMU guest | PROVISIONAL Phase 1 target |
-| Application language | C | AGREED direction |
-| Sensor architecture | Pluggable simulation/hardware backends | AGREED design requirement |
-| Initial sensor mode | Simulation, explicitly labelled | AGREED |
-| Physical sensor | DHT11 preferred | PENDING confirmation |
-| Physical board | Unknown | PENDING |
-| MQTT | Required | AGREED |
-| MQTT library | libmosquitto candidate | PROVISIONAL |
-| MQTT broker | Mosquitto candidate | PROVISIONAL |
-| Init | BusyBox init candidate | PROVISIONAL |
-| Root filesystem | Minimal Buildroot-generated rootfs | PROVISIONAL |
-| QEMU | Initial virtual testing | AGREED |
-| Track C | Only optional after Track B complete | AGREED scope rule |
+| **Build System** | Buildroot 2026.08.2 | `buildroot/source/buildroot-2026.08.2` |
+| **Defconfig** | `iot_gateway_x86_64_defconfig` | `buildroot/external/iot_gateway/configs/` |
+| **Linux Kernel** | 6.18.7 (x86_64) | `buildroot/external/iot_gateway/board/x86_64/linux.config` |
+| **C Library** | Glibc 2.42 | Host cross-compiler `gcc` 15.3.0 |
+| **Init System** | BusyBox 1.38.0 | `etc/init.d/rcS`, `S02security`, `S99iot-gateway` |
+| **Root Filesystem** | EXT2 (60.00 MiB) | `output/images/rootfs.ext2` |
+| **Kernel Image** | bzImage (6.34 MiB) | `output/images/bzImage` |
+| **MQTT Client** | libmosquitto 2.1.2 | Linked against `libmosquitto.so` |
+| **Host Broker** | Mosquitto 2.0.18 | Host listener on port 1883 |
+| **Hypervisor** | QEMU 8.2.2 (`-accel kvm -accel tcg`) | `scripts/qemu/run-qemu.sh` |
 
-## 3. Pending decisions
+---
 
-- [ ] Final build-system comparison and approval.
-- [ ] Exact Buildroot release.
-- [ ] Exact Linux kernel version.
-- [ ] Exact host dependency versions.
-- [ ] QEMU machine type and image format.
-- [ ] MQTT topic names, payload schema, QoS, and reconnect policy.
-- [ ] Warning/critical threshold values and boundary semantics.
-- [ ] Logging backend/path and rotation policy.
-- [ ] Final sensor API and data structures.
-- [ ] Physical board model/revision/architecture.
-- [ ] Physical sensor exact model and electrical details.
-- [ ] Board-specific kernel defconfig, device tree, bootloader, GPIO and driver.
+## 3. Verified Application Behavior & Policies
 
-## 4. Environments
+### 3.1 Temperature Classification Policy
+- **Normal Range:** `< 35.00°C` → Logged as `NORMAL`, no alert generated.
+- **Warning Threshold:** `35.00°C` to `< 40.00°C` → Logged as `WARNING`, Warning Alert generated.
+- **Critical Threshold:** `≥ 40.00°C` → Logged as `CRITICAL`, Critical Alert generated.
+- **Input Validation Range:** `[-40.00°C, 85.00°C]` inclusive. Values outside this range, non-finite values (`NaN`, `+Infinity`, `-Infinity`), or invalid sample flags are strictly rejected.
 
-| Member | Host | Development environment | Role |
+### 3.2 Sensor Simulation Engine
+- Source identifier: Always explicitly stamped as `SIMULATED`.
+- **Deterministic Mode:** Repeating 4-sample test cycle: `25.0°C` (Normal), `30.0°C` (Normal), `36.0°C` (Warning), `42.0°C` (Critical).
+- **Realistic Mode:** Bounded random walk constrained between `20.0°C` and `42.0°C` with ±1.0°C maximum step deltas.
+- Mode selection: Controlled via environment variable `IOT_SENSOR_MODE` (`deterministic` or `realistic`).
+
+### 3.3 CSV Logging & Disk Persistence
+- Target File: `/root/temperature_log.csv` (on `/dev/vda` root filesystem).
+- Header format: `timestamp,temperature_c,source,status,alert_level`.
+- Synchronization: Uses `fflush()` followed by kernel block commit via `fsync()`.
+- Persistence test: Verified that records survive guest power-off and can be inspected in the backing `rootfs.ext2` image via `debugfs`.
+
+### 3.4 MQTT Telemetry, Authentication & Outage Recovery
+- Reading Topic: `iot/temperature/readings` (Write-only for `gateway_pub`, read for `monitor_sub`)
+- Alert Topic: `iot/temperature/alerts` (Write-only for `gateway_pub`, read for `monitor_sub`)
+- Authentication: Enforced (`allow_anonymous false`). Credentials configured via `mosquitto_username_pw_set()` from protected runtime configuration `/etc/iot-gateway/mqtt.env` (mode `0600`).
+- Quality of Service: QoS 1 (At least once).
+- Retain Flag: Disabled (`false`).
+- Target Host in VM: `10.0.2.2:1883` (QEMU user-networking host gateway).
+- Outage Resilience: Implemented via non-blocking `mosquitto_connect_async()` and background thread loop. The gateway starts normally when the broker is offline, continues local processing and CSV logging, and establishes/resumes MQTT publishing the moment the broker becomes available.
+
+---
+
+## 4. Test Evidence & Results
+
+### 4.1 Unit Test Suite (`application/tests/`)
+All tests run with `-Wall -Wextra -Wpedantic` with zero warnings:
+
+| Test Binary | Target Module | Scope | Result |
 |---|---|---|---|
-| 1 | Windows + dual boot | Native Ubuntu 22.04 | Primary build/integration |
-| 2 | Windows | WSL 2.6.3.0 | Application/simulation |
-| 3 | Windows | WSL 2.6.3.0 | MQTT/security/startup contributions |
-| 4 | Windows | WSL 2.6.3.0 | Tests/docs/benchmarks |
+| `test_sensor` | `sensor.c` | Deterministic cycle, realistic bounds, source tag, invalid inputs | **PASS** |
+| `test_processor` | `processor.c` | Normal, Warning, Critical boundaries, range limits, NaN/Inf | **PASS** |
+| `test_alert` | `alert.c` | Suppression of Normal, Warning/Critical event generation | **PASS** |
+| `test_logger` | `logger.c` | Header creation, append mode, fsync, field parsing | **PASS** |
+| `test_mqtt` | `mqtt.c` | Telemetry & alert payload schema, topic separation, error checks | **PASS** |
+| `test_mqtt_reconnect`| `mqtt.c` | Async non-blocking startup & reconnection monitoring | **PASS** |
 
-Project paths:
-- Ubuntu: `~/iot-temperature-gateway` (proposed).
-- WSL: `/home/<user>/iot-temperature-gateway` (proposed; keep build tree in Linux filesystem).
+### 4.2 Guest Integration & Boot Verification
+Verified via automated serial console interaction inside the booted QEMU guest:
+- Kernel Boot: **PASS** (Linux 6.18.7 loaded, devices enumerated).
+- Sysctl Hardening: **PASS** (`dmesg_restrict=1`, `kptr_restrict=2`, `tcp_syncookies=1`).
+- Shadow Permissions: **PASS** (`ls -l /etc/shadow` = `-rw------- 1 root root`).
+- Network Setup: **PASS** (Default route established via DHCP on `eth0`).
+- Process Startup: **PASS** (`iot_gateway` daemon running as PID 125).
+- Output Redirection: **PASS** (`/var/log/iot_gateway.log` actively populated).
+- CSV File Persistence: **PASS** (`/root/temperature_log.csv` verified on virtual disk).
+- Daemon Shutdown: **PASS** (`/etc/init.d/S99iot-gateway stop` cleanly stops PID 125).
 
-Actual paths are PENDING until the repository is created.
+---
 
-## 5. Version record
+## 5. Measured Benchmark Results
 
-| Component | Version | Status |
+Collected from the booted distribution in QEMU (AMD64, 256M VM RAM, KVM acceleration):
+
+| Metric | Measured Value | Methodology |
 |---|---|---|
-| Ubuntu | 22.04 | Required host |
-| WSL | 2.6.3.0 | Reported; verify per machine |
-| Buildroot | PENDING | Not pinned |
-| Linux kernel | PENDING | Not pinned |
-| QEMU | PENDING | Not inspected |
-| Git | PENDING | Not inspected |
-| GCC/toolchain | PENDING | Not inspected |
-| Make | PENDING | Not inspected |
-| MQTT library | PENDING | Not pinned |
-| MQTT broker | PENDING | Not pinned |
+| **Cold Boot Duration** | **1.73 seconds** | Wall-clock timer from QEMU invocation to login prompt |
+| **Kernel Size (`bzImage`)** | **6,652,928 bytes** (6.34 MiB) | `stat -c %s` on build artifact |
+| **Rootfs Size (`rootfs.ext2`)**| **62,914,560 bytes** (60.00 MiB) | `stat -c %s` on build artifact |
+| **Combined Image Artifacts** | **69,567,488 bytes** (66.34 MiB) | Sum of kernel and rootfs |
+| **Guest Total RAM** | **235 MiB** (240,556 kB) | `free -m` inside guest |
+| **Guest Used RAM** | **13 MiB** | `free -m` inside guest |
+| **Guest Available RAM** | **216 MiB** (220,764 kB) | `/proc/meminfo` |
+| **Gateway Process RSS** | **6,688 kB** (~6.5 MiB) | `VmRSS` in `/proc/<pid>/status` |
+| **Gateway Process VmSize** | **84,836 kB** | `VmSize` in `/proc/<pid>/status` |
+| **CPU (Gateway Operating)** | **0.0% CPU** (91% idle, 8% io) | 10s top sample (5 iterations x 2s) |
+| **CPU (Idle / Gateway Stopped)**| **0.0% CPU** (100% idle, 0% io) | 10s top sample (5 iterations x 2s) |
 
-Do not infer versions from documentation or planned commands. Record actual command output.
+---
 
-## 6. Current milestone
+## 6. Hypervisor & Virtualization Strategy
 
-**M0 — Shared project planning and documentation baseline.**
+1. **Primary Platform: QEMU (Retained and Fully Verified)**
+   - Installed Version: QEMU emulator 8.2.2.
+   - Hardware Acceleration: KVM enabled (`/dev/kvm`).
+   - Launch Command: `scripts/qemu/run-qemu.sh` (or `start-qemu.sh` in images directory).
+   - Performance: Sub-2-second boot time, direct serial console passthrough, flawless host network integration via user networking (`10.0.2.2`).
 
-This document and companion planning files are being prepared. No implementation milestone is claimed complete.
+2. **Secondary Platform: Oracle VirtualBox (Evaluated)**
+   - VirtualBox is not installed on the development host or within the WSL2 environment.
+   - Nested virtualization of VirtualBox inside WSL2 is not supported.
+   - Technical decision: In accordance with Project Instructions (Sections 3 & 12), QEMU is retained as the primary runtime environment to preserve stability and reproducibility without introducing fragile hypervisor conversions.
 
-## 7. Completed work
+---
 
-- [x] Track B selected as project scope.
-- [x] Simulation-first approach agreed.
-- [x] Native Ubuntu primary / WSL parallel workflow agreed.
-- [x] One shared Git repository and status-file workflow specified.
-- [x] Initial architecture and roadmap documented.
-- [ ] Repository actually created and files committed.
-- [ ] Environment inspection completed.
-- [ ] Build dependencies installed.
-- [ ] Buildroot configured/built.
-- [ ] Application implemented/tested.
-- [ ] MQTT integration tested.
-- [ ] QEMU boot tested.
-- [ ] Benchmarks measured.
-- [ ] Physical hardware integrated.
+## 7. Security Hardening Verification
 
-## 8. Files created
+1. **Kernel Address Space Leak Protection:**
+   - Setting: `kernel.kptr_restrict = 2`
+   - Purpose: Hides kernel symbol addresses from unprivileged users, defeating kernel exploit payload alignment.
+   - Verification: Confirmed `2` via guest `sysctl kernel.kptr_restrict`.
+2. **Kernel Ring Buffer Access Control:**
+   - Setting: `kernel.dmesg_restrict = 1`
+   - Purpose: Prevents non-root users from reading `dmesg`, shielding device details and kernel addresses.
+   - Verification: Confirmed `1` via guest `sysctl kernel.dmesg_restrict`.
+3. **TCP SYN Flood Defense:**
+   - Setting: `net.ipv4.tcp_syncookies = 1` & `CONFIG_SYN_COOKIES=y`
+   - Purpose: Protects the gateway against TCP connection exhaustion DoS attacks.
+   - Verification: Confirmed `1` via guest `sysctl net.ipv4.tcp_syncookies`.
+4. **Credential Storage Hardening:**
+   - Setting: Mode `0600` on `/etc/shadow`, root password hashed with SHA-512.
+   - Verification: Confirmed `-rw------- 1 root root` via guest `ls -l /etc/shadow`.
+5. **Memory Protection:**
+   - Kernel compile options: `CONFIG_STRICT_KERNEL_RWX=y` and `CONFIG_STRICT_MODULE_RWX=y` enforce memory permissions so code is non-writable and data is non-executable.
+6. **Gateway Credential Storage Hardening:**
+   - Setting: Protected configuration `/etc/iot-gateway/mqtt.env` with mode `0600` (`-rw------- 1 root root`).
+   - Purpose: Prevents hardcoded credentials in source code and unauthorized reading of gateway secrets.
+7. **Broker Password Database Security:**
+   - Setting: `/etc/mosquitto/passwd` owned by `mosquitto:mosquitto` with mode `0600` (`-rw-------`).
+   - Purpose: Restricts password database access exclusively to the Mosquitto broker daemon and system root.
+8. **Topic ACL Least Privilege:**
+   - Setting: Strict ACLs in `/etc/mosquitto/acl.conf`.
+   - Purpose: Gateway publisher account (`gateway_pub`) is write-only for `iot/temperature/readings` and `iot/temperature/alerts`; monitoring subscriber (`monitor_sub`) is read-only for `iot/temperature/#`; anonymous access is rejected.
 
-Initial documentation set planned:
-- `PROJECT_OVERVIEW.md`
-- `PROJECT_ARCHITECTURE.md`
-- `PROJECT_ROADMAP.md`
-- `TEAM_TASKS.md`
-- `PROJECT_STATUS.md`
-- `BUILD_AND_TEST_PLAN.md`
-- `TEAM_SYNC_PROTOCOL.md`
+---
 
-Record actual additions/changes in Git after creation. No source/build files are yet verified.
+## 8. Known System Limitations
 
-## 9. Commands tested and results
+1. **No Physical Hardware:** All telemetry is software-simulated. There is no physical board or sensor integration.
+2. **Volatile `/var/log`:** Standard Buildroot symlinks `/var/log` to `/tmp` (`tmpfs`). Persistent telemetry is saved at `/root/temperature_log.csv`.
+3. **Stock Comparison:** Stock Buildroot configuration (`qemu_x86_64_defconfig`) was cataloged, but a separate stock image was not built to prevent disk exhaustion. Custom metrics are measured and documented directly.
+4. **Offline Message Spooling:** libmosquitto automatically reconnects with backoff, but does not provide an on-disk transaction queue for telemetry generated while the broker is offline.
 
-**None recorded.** This is intentional: no installation, build, boot, or benchmark commands have been executed as part of this planning baseline.
+---
 
-| Date | Environment | Command | Actual output/result | Evidence file |
-|---|---|---|---|---|
-| | | | | |
+## 9. Documentation Index
 
-## 10. Test results
+The complete documentation suite for Track B is located in the [`docs/`](docs/) directory:
 
-No application, MQTT, QEMU, security, or benchmark tests have been run yet.
+### Core Technical Reports (`docs/report/`)
+- [docs/report/FINAL_PROJECT_REPORT.md](docs/report/FINAL_PROJECT_REPORT.md) — Comprehensive 24-section audited academic final project report
+- [docs/report/REQUIREMENTS_TRACEABILITY_MATRIX.md](docs/report/REQUIREMENTS_TRACEABILITY_MATRIX.md) — Traceability matrix mapping requirements to evidence and status
+- [docs/report/REPORT_EVIDENCE_AUDIT.md](docs/report/REPORT_EVIDENCE_AUDIT.md) — Systematic audit verifying all report claims against repository files
+- [docs/report/REPORT_GAPS_AND_PENDING_WORK.md](docs/report/REPORT_GAPS_AND_PENDING_WORK.md) — Transparent gap analysis and Phase 2 physical hardware roadmap
 
-| Test | Status | Evidence |
-|---|---|---|
-| Simulator scenarios | NOT RUN | — |
-| Threshold boundaries | NOT RUN | — |
-| Invalid input | NOT RUN | — |
-| MQTT publish/subscribe | NOT RUN | — |
-| QEMU boot | NOT RUN | — |
-| Automatic startup | NOT RUN | — |
-| Security controls | NOT RUN | — |
-| Image/boot/RAM/CPU measurements | NOT RUN | — |
-| Stock Linux comparison | NOT RUN | — |
-| Physical sensor | BLOCKED: hardware pending | — |
+### Engineering Guides (`docs/`)
+- [docs/architecture.md](docs/architecture.md) — System architecture, module boundaries, data pipeline, and system diagram
+- [docs/build-guide.md](docs/build-guide.md) — Environment prerequisites, Buildroot configuration, and image generation
+- [docs/virtualization-guide.md](docs/virtualization-guide.md) — Hypervisor evaluation, QEMU configuration, networking, and VirtualBox analysis
+- [docs/application-guide.md](docs/application-guide.md) — C gateway implementation, sensor simulation modes, validation, and threshold policies
+- [docs/mqtt-guide.md](docs/mqtt-guide.md) — MQTT topics, JSON schemas, QoS, reconnection backoff, and host subscriber commands
+- [docs/security.md](docs/security.md) — Kernel memory protections, sysctl runtime hardening, credential security, and live verification
+- [docs/testing.md](docs/testing.md) — Multi-tier test suite results, unit tests, integration tests, and persistence tests
+- [docs/benchmarks.md](docs/benchmarks.md) — Measured performance metrics (boot time, RAM, storage footprint, CPU utilization)
+- [docs/troubleshooting.md](docs/troubleshooting.md) — Common build, networking, buffering, and virtualization pitfalls and resolutions
+- [docs/demonstration-guide.md](docs/demonstration-guide.md) — Step-by-step reproducible evaluation walkthrough for examiners
 
-## 11. Problems and limitations
-
-- Physical board and sensor are not confirmed.
-- Exact software versions are not pinned.
-- First Buildroot build duration and storage requirement are unknown until environment inspection.
-- WSL QEMU display and networking behavior must be verified on the actual machines.
-- QEMU does not inherently emulate the physical DHT11 or target-board GPIO.
-- QEMU benchmark values cannot be presented as physical-board measurements.
-
-## 12. Next steps
-
-1. Create the Git repository and add the seven shared documents.
-2. Start the Ubuntu and WSL ChatGPT branches using their initialization prompts.
-3. Perform environment inspection in each environment.
-4. Compare results and resolve host-specific issues.
-5. Complete build-system comparison and pin Buildroot/kernel versions.
-6. Agree the sensor API, threshold semantics, MQTT schema, and configuration format.
-7. Begin parallel application/MQTT/docs work while Member 1 prepares the primary image.
-
-## 13. Synchronization notes
-
-- Ubuntu chat owns primary build integration and proposes project-wide technical decisions.
-- WSL chat follows approved decisions and reports environment-specific constraints.
-- Neither chat may assume the other has executed a task.
-- A task is complete only with actual execution/test evidence.
-- At each milestone, create a dated SYNC SUMMARY and update this file.
-- If a summary conflicts with this file, pause implementation, compare evidence and commit history, then explicitly resolve the discrepancy. Do not silently choose one version.
